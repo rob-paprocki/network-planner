@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-25
+
+**Upgrading:** nothing to do.
+
+### Fixed
+
+- The web planner's privacy page now says that Cloudflare Web Analytics runs on the hosted site: it counts visits and page load times without cookies, and never sees your plan. The page used to say no outside scripts loaded.
+
 ## [1.0.0] - 2026-11-25
 
 **Upgrading:** first release, so there's nothing to upgrade. Copy `skills/network-planner/` into your skills folder, or install the repo as a Claude Code plugin.

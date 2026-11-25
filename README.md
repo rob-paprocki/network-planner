@@ -109,7 +109,7 @@ ipplan summary network-plan.json > network-plan.md
 
 ## Web planner and API
 
-The site in `site/` is a Cloudflare Worker. It serves the planner page and a small API that runs the same checks for other tools. The page keeps your plan in your browser's storage and sends it nowhere. The API checks each request in memory and keeps nothing.
+The site in `site/` is a Cloudflare Worker. It serves the planner page and a small API that runs the same checks for other tools. The page keeps your plan in your browser's storage and sends it nowhere. The API checks each request in memory and keeps nothing. The hosted site runs Cloudflare Web Analytics, which counts visits without cookies; the page's privacy notes say exactly what it collects.
 
 | Endpoint | What it does |
 |---|---|
