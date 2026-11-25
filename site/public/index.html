@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Network Planner</title>
+<meta name="description" content="Plan an IPv4 network: segments, VLANs, address blocks and devices, checked as you go. Runs in your browser.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Network Planner</div>
+      <input id="planName" class="title" aria-label="Plan name" placeholder="Name this plan">
+      <p class="sub">Lay out segments, VLANs, address blocks and devices for any IPv4 range. Everything runs in your browser and is saved only on this device.</p>
+    </div>
+    <div class="actions">
+      <div class="themes" role="group" aria-label="Theme">
+        <button type="button" data-theme="auto" aria-pressed="true">Auto</button>
+        <button type="button" data-theme="light" aria-pressed="false">Light</button>
+        <button type="button" data-theme="dark" aria-pressed="false">Dark</button>
+      </div>
+      <button type="button" class="btn" id="btnNew">New</button>
+      <select id="exampleSel" aria-label="Example plan">
+        <option value="small-office">Small office</option>
+        <option value="home">Home</option>
+        <option value="home-lab">Home lab</option>
+        <option value="av-building">AV and building systems</option>
+        <option value="three-sites">Three sites</option>
+      </select>
+      <button type="button" class="btn" id="btnExample">Load example</button>
+      <label class="btn" for="fileImport">Import</label>
+      <input type="file" id="fileImport" accept=".json,application/json" hidden>
+      <button type="button" class="btn" id="btnExportJson">Export JSON</button>
+      <button type="button" class="btn" id="btnExportMd">Export summary</button>
+    </div>
+  </header>
+
+  <section class="status" id="status" aria-live="polite"></section>
+
+  <section>
+    <div class="sechead"><h2>Address space</h2><span class="hint">Ranges every segment must fit inside. One per line, such as 192.0.2.0/24.</span></div>
+    <textarea id="space" rows="2" aria-label="Address space"></textarea>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>Size new segments</h2><span class="hint">Give each segment a name and a host count with room to grow. A gateway is added for you.</span></div>
+    <div class="panel carve">
+      <label>Parent range <input id="carveParent" class="mono" placeholder="192.0.2.0/24"></label>
+      <label class="grow">Segments, one per line as name:hosts <textarea id="carveReqs" rows="3" class="mono" placeholder="users:120&#10;guest:40&#10;cameras:24"></textarea></label>
+      <label class="check"><input type="checkbox" id="carveAvoid" checked> Keep clear of segments already in the plan</label>
+      <button type="button" class="btn primary" id="btnCarve">Size and place</button>
+      <div id="carveOut" class="grow"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>Address map</h2>
+      <label class="hint">Showing <select id="mapWindow" aria-label="Which /24 to show"></select></label>
+    </div>
+    <div class="mapwrap">
+      <div class="panel"><div class="map" id="map"></div></div>
+      <div class="panel"><div id="legend" class="legend"></div><div id="pick" class="pick" hidden></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>Segments</h2><button type="button" class="btn" id="btnAddSeg">Add segment</button></div>
+    <div class="scroll"><table id="segTable"></table></div>
+  </section>
+
+  <section id="segDetail"></section>
+
+  <section>
+    <div class="sechead"><h2>Notes</h2></div>
+    <textarea id="notes" rows="3" aria-label="Notes"></textarea>
+  </section>
+
+  <footer>
+    <a href="https://github.com/rob-paprocki/network-planner">Source and agent skill</a>
+    <a href="/api">API</a>
+    <a href="privacy.html">Privacy</a>
+  </footer>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

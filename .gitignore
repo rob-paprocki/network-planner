@@ -1,0 +1,21 @@
+# The private word list of blocked terms: never committed. Any other *.local file stays local too.
+wordlist.local
+*.local
+
+# Claude Code's per-machine settings and session state. The shared skills in .claude/skills/ are tracked.
+.claude/*
+!.claude/skills/
+
+# macOS Finder metadata
+.DS_Store
+
+# Copilot package build output
+copilot/build/
+
+# Site: installed packages, local Wrangler state, browser-test screenshots
+site/node_modules/
+site/.wrangler/
+.playwright-mcp/
+
+# Python bytecode
+__pycache__/

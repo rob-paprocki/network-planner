@@ -1,0 +1,110 @@
+[
+  {
+    "input": "198.51.100.77/26",
+    "expect": {
+      "ok": true,
+      "network": "198.51.100.64/26",
+      "aligned": false,
+      "prefix": 26,
+      "addresses": 64,
+      "usable": 62,
+      "first": "198.51.100.65",
+      "last": "198.51.100.126",
+      "broadcast": "198.51.100.127",
+      "scope": "documentation (RFC 5737)",
+      "class": "C"
+    }
+  },
+  {
+    "input": "192.0.2.4/31",
+    "expect": {
+      "ok": true,
+      "network": "192.0.2.4/31",
+      "aligned": true,
+      "usable": 2,
+      "first": "192.0.2.4",
+      "last": "192.0.2.5",
+      "broadcast": null
+    }
+  },
+  {
+    "input": "192.0.2.9/32",
+    "expect": {
+      "ok": true,
+      "usable": 1,
+      "first": "192.0.2.9",
+      "last": "192.0.2.9",
+      "broadcast": null
+    }
+  },
+  {
+    "input": "203.0.113.0/24",
+    "expect": {
+      "ok": true,
+      "usable": 254,
+      "first": "203.0.113.1",
+      "last": "203.0.113.254",
+      "class": "C"
+    }
+  },
+  {
+    "input": "2001:db8::/64",
+    "expect": {
+      "ok": false
+    }
+  },
+  {
+    "input": "192.0.2.0/33",
+    "expect": {
+      "ok": false
+    }
+  },
+  {
+    "input": "not-a-range",
+    "expect": {
+      "ok": false
+    }
+  },
+  {
+    "input": "172.20.30.0/24",
+    "expect": {
+      "ok": true,
+      "scope": "private (RFC 1918)",
+      "class": "B",
+      "usable": 254
+    }
+  },
+  {
+    "input": "10.40.10.0/24",
+    "expect": {
+      "ok": true,
+      "scope": "private (RFC 1918)",
+      "class": "A"
+    }
+  },
+  {
+    "input": "224.1.0.0/16",
+    "expect": {
+      "ok": true,
+      "scope": "multicast (not for hosts)",
+      "class": "D"
+    }
+  },
+  {
+    "input": "100.64.0.0/10",
+    "expect": {
+      "ok": true,
+      "scope": "carrier-grade NAT (shared)",
+      "class": "A"
+    }
+  },
+  {
+    "input": "8.8.8.8/32",
+    "expect": {
+      "ok": true,
+      "scope": "public",
+      "class": "A",
+      "usable": 1
+    }
+  }
+]

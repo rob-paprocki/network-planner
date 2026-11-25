@@ -1,0 +1,20 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.9/schema.json",
+  "version": "v1.9",
+  "name": "Network Planner",
+  "description": "Plans an IPv4 network with you: address space, segments and VLANs, fixed and DHCP blocks, and devices. Does the subnet math in Code Interpreter and checks the plan before you build it.",
+  "instructions": "Filled in from copilot/instructions.md by copilot/build.sh.",
+  "capabilities": [
+    { "name": "CodeInterpreter" }
+  ],
+  "agent_skills": [
+    { "folder": "./skills/network-planner" }
+  ],
+  "conversation_starters": [
+    { "title": "Plan office VLANs", "text": "Help me plan VLANs and addresses for a 25-person office: staff laptops, desk phones, cameras, a file server, printers and guest Wi-Fi." },
+    { "title": "Tidy my home network", "text": "Here's my router's DHCP lease list. I want IoT devices split off and a guest network. What should the plan look like?" },
+    { "title": "Size a subnet", "text": "How big a subnet do I need for 120 devices with room to grow, and where should it go in my range?" },
+    { "title": "Add a segment", "text": "I have a network plan file. Add a cameras segment for 30 cameras without moving anything that's already there." },
+    { "title": "Check my plan", "text": "Check this network plan for overlaps, wrong boundaries and DHCP clashes." }
+  ]
+}

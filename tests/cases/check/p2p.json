@@ -1,0 +1,28 @@
+{
+  "name": "p2p",
+  "expect": [],
+  "plan": {
+    "schema": 1,
+    "name": "Example small office",
+    "notes": "One /24 split by purpose. The last /27 is held back for growth.",
+    "segments": [
+      {
+        "id": "link",
+        "name": "Uplink",
+        "cidr": "192.0.2.0/31",
+        "devices": [
+          {
+            "name": "a",
+            "ip": "192.0.2.0",
+            "how": "static"
+          },
+          {
+            "name": "b",
+            "ip": "192.0.2.1",
+            "how": "static"
+          }
+        ]
+      }
+    ]
+  }
+}

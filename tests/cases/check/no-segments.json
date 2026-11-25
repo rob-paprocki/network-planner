@@ -1,0 +1,15 @@
+{
+  "name": "no-segments",
+  "expect": [
+    "no-segments"
+  ],
+  "plan": {
+    "schema": 1,
+    "name": "Example small office",
+    "address_space": [
+      "192.168.100.0/24"
+    ],
+    "notes": "One /24 split by purpose. The last /27 is held back for growth.",
+    "segments": []
+  }
+}

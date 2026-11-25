@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "name": "Example home",
+  "address_space": ["192.168.100.0/24"],
+  "notes": "Trusted devices, smart-home gadgets and guests on separate VLANs. IoT reaches the internet only; guests too.",
+  "segments": [
+    {
+      "id": "trusted", "name": "Trusted", "vlan": 10, "cidr": "192.168.100.0/25", "gateway": "192.168.100.1",
+      "purpose": "Laptops, phones and the NAS. Can reach IoT to control it; IoT can't start connections back.",
+      "blocks": [
+        { "name": "Fixed", "start": "192.168.100.1", "end": "192.168.100.31", "kind": "fixed" },
+        { "name": "Room to grow", "start": "192.168.100.32", "end": "192.168.100.63", "kind": "spare" },
+        { "name": "DHCP", "start": "192.168.100.64", "end": "192.168.100.126", "kind": "pool" }
+      ],
+      "devices": [
+        { "name": "router", "ip": "192.168.100.1", "how": "static", "role": "Router, Wi-Fi and firewall", "gateway": true },
+        { "name": "nas", "ip": "192.168.100.10", "how": "reserved", "role": "File storage and backups" },
+        { "name": "printer", "ip": "192.168.100.20", "how": "reserved", "role": "Printer" },
+        { "name": "family-devices", "how": "dynamic", "role": "Phones, laptops, tablets" }
+      ]
+    },
+    {
+      "id": "iot", "name": "Smart home", "vlan": 20, "cidr": "192.168.100.128/26", "gateway": "192.168.100.129",
+      "purpose": "TV, speakers, thermostat, plugs. Internet only.",
+      "blocks": [
+        { "name": "Fixed", "start": "192.168.100.129", "end": "192.168.100.159", "kind": "fixed" },
+        { "name": "DHCP", "start": "192.168.100.160", "end": "192.168.100.190", "kind": "pool" }
+      ],
+      "devices": [
+        { "name": "living-room-tv", "ip": "192.168.100.140", "how": "reserved", "role": "TV" },
+        { "name": "thermostat", "ip": "192.168.100.141", "how": "reserved", "role": "Thermostat" },
+        { "name": "plugs-and-bulbs", "how": "dynamic", "role": "Smart plugs and bulbs" }
+      ]
+    },
+    {
+      "id": "guest", "name": "Guest Wi-Fi", "vlan": 30, "cidr": "192.168.100.192/26", "gateway": "192.168.100.193",
+      "purpose": "Visitors. Internet only.",
+      "blocks": [
+        { "name": "Gateway", "start": "192.168.100.193", "end": "192.168.100.193", "kind": "fixed" },
+        { "name": "DHCP", "start": "192.168.100.194", "end": "192.168.100.254", "kind": "pool" }
+      ],
+      "devices": [
+        { "name": "guests", "how": "dynamic", "role": "Visitor phones and laptops" }
+      ]
+    }
+  ]
+}

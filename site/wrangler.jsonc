@@ -1,0 +1,24 @@
+// The network planner site: static page plus a small check API, deployed by Cloudflare Workers Builds
+// from the public repository (root directory: site) whenever a release lands on main.
+// A fork that deploys its own copy should change "name" and "routes".
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "netplanner",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-11-01",
+  "routes": [{ "pattern": "netplanner.rpaprocki.com", "custom_domain": true }],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api", "/api/*"]
+  },
+  // Per-address limit on the API, counted in memory at the edge. Addresses aren't stored.
+  "ratelimits": [
+    { "name": "API_LIMIT", "namespace_id": "4810", "simple": { "limit": 60, "period": 60 } }
+  ],
+  // No observability: request bodies are plans people may consider private, so nothing is logged.
+  "observability": { "enabled": false }
+}

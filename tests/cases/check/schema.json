@@ -1,0 +1,202 @@
+{
+  "name": "schema",
+  "expect": [
+    "schema"
+  ],
+  "plan": {
+    "schema": 2,
+    "name": "Example small office",
+    "address_space": [
+      "192.168.100.0/24"
+    ],
+    "notes": "One /24 split by purpose. The last /27 is held back for growth.",
+    "segments": [
+      {
+        "id": "mgmt",
+        "name": "Management",
+        "vlan": 10,
+        "cidr": "192.168.100.0/27",
+        "gateway": "192.168.100.1",
+        "purpose": "Firewall, switches and access points. Only admins reach it.",
+        "blocks": [
+          {
+            "name": "Network gear",
+            "start": "192.168.100.1",
+            "end": "192.168.100.15",
+            "kind": "fixed"
+          },
+          {
+            "name": "Spare",
+            "start": "192.168.100.16",
+            "end": "192.168.100.30",
+            "kind": "spare"
+          }
+        ],
+        "devices": [
+          {
+            "name": "firewall",
+            "ip": "192.168.100.1",
+            "how": "static",
+            "role": "Router and firewall",
+            "gateway": true
+          },
+          {
+            "name": "core-switch",
+            "ip": "192.168.100.2",
+            "how": "static",
+            "role": "Core switch"
+          },
+          {
+            "name": "ap-lobby",
+            "ip": "192.168.100.10",
+            "how": "reserved",
+            "role": "Wi-Fi access point",
+            "current_ip": "192.168.100.70"
+          }
+        ]
+      },
+      {
+        "id": "servers",
+        "name": "Servers",
+        "vlan": 20,
+        "cidr": "192.168.100.32/27",
+        "gateway": "192.168.100.33",
+        "purpose": "File server, backups and printers.",
+        "blocks": [
+          {
+            "name": "Servers",
+            "start": "192.168.100.33",
+            "end": "192.168.100.49",
+            "kind": "fixed"
+          },
+          {
+            "name": "Printers",
+            "start": "192.168.100.50",
+            "end": "192.168.100.62",
+            "kind": "fixed"
+          }
+        ],
+        "devices": [
+          {
+            "name": "files",
+            "ip": "192.168.100.34",
+            "how": "static",
+            "role": "File server"
+          },
+          {
+            "name": "backup",
+            "ip": "192.168.100.35",
+            "how": "static",
+            "role": "Backup target"
+          },
+          {
+            "name": "printer-1",
+            "ip": "192.168.100.50",
+            "how": "reserved",
+            "role": "Office printer"
+          }
+        ]
+      },
+      {
+        "id": "users",
+        "name": "Staff",
+        "vlan": 30,
+        "cidr": "192.168.100.64/26",
+        "gateway": "192.168.100.65",
+        "purpose": "Staff laptops and phones.",
+        "blocks": [
+          {
+            "name": "Fixed",
+            "start": "192.168.100.65",
+            "end": "192.168.100.79",
+            "kind": "fixed"
+          },
+          {
+            "name": "DHCP",
+            "start": "192.168.100.80",
+            "end": "192.168.100.126",
+            "kind": "pool"
+          }
+        ],
+        "devices": [
+          {
+            "name": "reception-pc",
+            "ip": "192.168.100.66",
+            "how": "reserved",
+            "role": "Front desk PC"
+          },
+          {
+            "name": "staff-laptops",
+            "how": "dynamic",
+            "role": "Any staff laptop"
+          }
+        ]
+      },
+      {
+        "id": "guest",
+        "name": "Guest Wi-Fi",
+        "vlan": 40,
+        "cidr": "192.168.100.128/26",
+        "gateway": "192.168.100.129",
+        "purpose": "Internet only. Blocked from every other segment.",
+        "blocks": [
+          {
+            "name": "Gateway",
+            "start": "192.168.100.129",
+            "end": "192.168.100.129",
+            "kind": "fixed"
+          },
+          {
+            "name": "DHCP",
+            "start": "192.168.100.130",
+            "end": "192.168.100.190",
+            "kind": "pool"
+          }
+        ],
+        "devices": [
+          {
+            "name": "guests",
+            "how": "dynamic",
+            "role": "Visitor phones and laptops"
+          }
+        ]
+      },
+      {
+        "id": "cameras",
+        "name": "Cameras",
+        "vlan": 50,
+        "cidr": "192.168.100.192/27",
+        "gateway": "192.168.100.193",
+        "purpose": "IP cameras and the recorder. No internet access.",
+        "blocks": [
+          {
+            "name": "Recorder",
+            "start": "192.168.100.193",
+            "end": "192.168.100.195",
+            "kind": "fixed"
+          },
+          {
+            "name": "Cameras",
+            "start": "192.168.100.196",
+            "end": "192.168.100.222",
+            "kind": "fixed"
+          }
+        ],
+        "devices": [
+          {
+            "name": "nvr",
+            "ip": "192.168.100.194",
+            "how": "static",
+            "role": "Video recorder"
+          },
+          {
+            "name": "cam-door",
+            "ip": "192.168.100.196",
+            "how": "reserved",
+            "role": "Front door camera"
+          }
+        ]
+      }
+    ]
+  }
+}

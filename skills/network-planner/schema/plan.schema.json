@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rob-paprocki/network-planner/blob/main/skills/network-planner/schema/plan.schema.json",
+  "title": "Network plan",
+  "description": "An IPv4 network plan: the address space, its segments, the blocks inside each segment, and the devices. ipplan check enforces the address rules this schema can't express (overlaps, boundaries, pools).",
+  "type": "object",
+  "required": ["schema", "segments"],
+  "properties": {
+    "schema": { "const": 1, "description": "Format version. Always 1 for now." },
+    "name": { "type": "string", "description": "What this plan is for, such as a site or customer name." },
+    "address_space": {
+      "type": "array",
+      "description": "Ranges every segment must fit inside. Leave it out to skip that check.",
+      "items": { "$ref": "#/$defs/cidr" }
+    },
+    "notes": { "type": "string" },
+    "segments": { "type": "array", "items": { "$ref": "#/$defs/segment" } }
+  },
+  "$defs": {
+    "ipv4": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,2})(\\.(0|[1-9][0-9]{0,2})){3}$",
+      "examples": ["192.0.2.10"]
+    },
+    "cidr": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,2})(\\.(0|[1-9][0-9]{0,2})){3}/([0-9]|[12][0-9]|3[0-2])$",
+      "examples": ["192.0.2.0/24"]
+    },
+    "segment": {
+      "type": "object",
+      "description": "One subnet, usually one VLAN, with one purpose.",
+      "required": ["id", "name", "cidr"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$", "description": "Short unique key, such as users." },
+        "name": { "type": "string" },
+        "site": { "type": "string", "description": "Which site this segment belongs to. VLAN numbers only have to be unique within a site." },
+        "vlan": { "type": "integer", "minimum": 1, "maximum": 4094 },
+        "cidr": { "$ref": "#/$defs/cidr" },
+        "gateway": { "$ref": "#/$defs/ipv4" },
+        "purpose": { "type": "string", "description": "Who and what lives here, and what it may reach." },
+        "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
+        "devices": { "type": "array", "items": { "$ref": "#/$defs/device" } }
+      }
+    },
+    "block": {
+      "type": "object",
+      "description": "A run of addresses inside a segment set aside for one job.",
+      "required": ["name", "start", "end", "kind"],
+      "properties": {
+        "name": { "type": "string" },
+        "start": { "$ref": "#/$defs/ipv4" },
+        "end": { "$ref": "#/$defs/ipv4" },
+        "kind": {
+          "enum": ["fixed", "pool", "spare"],
+          "description": "fixed: set by hand or by DHCP reservation. pool: handed out by DHCP. spare: held for later."
+        },
+        "note": { "type": "string" }
+      }
+    },
+    "device": {
+      "type": "object",
+      "required": ["name", "how"],
+      "properties": {
+        "name": { "type": "string" },
+        "ip": { "$ref": "#/$defs/ipv4", "description": "The planned address. Optional for dynamic devices." },
+        "current_ip": { "$ref": "#/$defs/ipv4", "description": "Where it is today, when it has to move." },
+        "how": {
+          "enum": ["static", "reserved", "dynamic", "retire"],
+          "description": "static: set on the device. reserved: a DHCP reservation. dynamic: any pool address. retire: going away."
+        },
+        "gateway": { "type": "boolean", "description": "True for the device that is the segment's gateway." },
+        "role": { "type": "string" },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

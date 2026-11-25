@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+# ipplan: check, summarise and carve IPv4 network plans. Needs bash 3.2+ and jq 1.6+.
+# Run "ipplan help" for usage.
+
+set -u
+
+VERSION=1.0.0
+
+# Find this script's real folder, following symlinks without readlink -f (macOS lacks it).
+src=$0
+while [ -L "$src" ]; do
+    dir=$(cd "$(dirname "$src")" && pwd)
+    src=$(readlink "$src")
+    case $src in /*) ;; *) src=$dir/$src ;; esac
+done
+HERE=$(cd "$(dirname "$src")" && pwd)
+LIB=$HERE/jq
+
+usage() {
+    cat <<'EOF'
+ipplan: plan IPv4 networks as a JSON file and check them before you build.
+
+Usage:
+  ipplan check PLAN.json [--json]     Find mistakes in a plan
+  ipplan summary PLAN.json            Print the plan as Markdown tables
+  ipplan info CIDR [--json]           Describe one range: mask, usable addresses, first and last
+  ipplan carve PARENT NAME:HOSTS... [--avoid CIDR]... [--plan PLAN.json] [--json]
+                                       Size segments from host counts and place them in PARENT
+  ipplan version
+  ipplan help
+
+check exits 0 when the plan is clean, 1 when it has errors, and 2 when it has only warnings.
+carve counts a gateway on top of each host count. --avoid and --plan keep it clear of ranges
+already in use, so you can add segments to an existing plan.
+EOF
+}
+
+die() { echo "ipplan: $*" >&2; exit 64; }
+
+need_jq() {
+    command -v jq >/dev/null 2>&1 || die "jq is missing. Install it (brew install jq, apt install jq) and try again."
+}
+
+# Validate that $1 is readable JSON; print jq's own message if it isn't.
+read_plan() {
+    [ -n "${1:-}" ] || die "give a plan file, for example: ipplan check plan.json"
+    [ -r "$1" ] || die "can't read $1"
+    if ! err=$(jq empty "$1" 2>&1); then
+        echo "ipplan: $1 isn't valid JSON: $err" >&2
+        exit 1
+    fi
+}
+
+cmd_check() {
+    plan=''; json=0
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --json) json=1 ;;
+            -*) die "check: unknown option $1" ;;
+            *) [ -z "$plan" ] || die "check: one plan at a time"; plan=$1 ;;
+        esac
+        shift
+    done
+    read_plan "$plan"
+    out=$(jq -L "$LIB" -f "$LIB/check.jq" "$plan") || die "check failed to run on $plan"
+    errors=$(printf '%s' "$out" | jq '[.[] | select(.level == "error")] | length')
+    warnings=$(printf '%s' "$out" | jq '[.[] | select(.level == "warning")] | length')
+    if [ "$json" = 1 ]; then
+        printf '%s' "$out" | jq --arg p "$plan" '{plan: $p, ok: ([.[] | select(.level == "error")] | length == 0), findings: .}'
+    else
+        printf '%s' "$out" | jq -r '.[] | "\(.level | if . == "error" then "ERROR  " else "WARN   " end)\(.where): \(.message)"'
+        if [ "$errors" = 0 ] && [ "$warnings" = 0 ]; then
+            echo "$plan: no problems found."
+        else
+            echo "$plan: $errors error(s), $warnings warning(s)."
+        fi
+    fi
+    [ "$errors" = 0 ] || return 1
+    [ "$warnings" = 0 ] || return 2
+    return 0
+}
+
+cmd_summary() {
+    [ $# -eq 1 ] || die "summary: give one plan file"
+    read_plan "$1"
+    jq -r -L "$LIB" -f "$LIB/summary.jq" "$1" || die "summary failed to run on $1"
+}
+
+cmd_info() {
+    c=''; json=0
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --json) json=1 ;;
+            -*) die "info: unknown option $1" ;;
+            *) [ -z "$c" ] || die "info: one range at a time"; c=$1 ;;
+        esac
+        shift
+    done
+    [ -n "$c" ] || die "info: give a range, for example: ipplan info 192.0.2.0/26"
+    out=$(jq -n -L "$LIB" --arg c "$c" -f "$LIB/info.jq") || die "info failed to run"
+    if [ "$json" = 1 ]; then
+        printf '%s\n' "$out"
+    else
+        printf '%s' "$out" | jq -r 'if .ok then
+            (if .aligned then "" else "Note: \(.input) isn'"'"'t on a /\(.prefix) boundary; the range it sits in is \(.network).\n" end) +
+            "Network    \(.network)\nMask       \(.mask)\nAddresses  \(.addresses) (\(.usable) usable)\nFirst      \(.first)\nLast       \(.last)\nBroadcast  \(.broadcast // "none (point-to-point or single host)")\nScope      \(.scope)\nClass      \(.class) (the pre-1993 class, still on Network+; it has no effect on routing)"
+          else "ipplan: \(.error)" end'
+    fi
+    printf '%s' "$out" | jq -e '.ok' >/dev/null || return 1
+}
+
+cmd_carve() {
+    parent=''; json=0; reqs=''; avoid=''; plan=''
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --json) json=1 ;;
+            --avoid) shift; [ $# -gt 0 ] || die "carve: --avoid needs a range"; avoid="$avoid$1
+" ;;
+            --plan) shift; [ $# -gt 0 ] || die "carve: --plan needs a file"; plan=$1 ;;
+            -*) die "carve: unknown option $1" ;;
+            *)
+                if [ -z "$parent" ]; then
+                    parent=$1
+                elif [[ $1 =~ ^[A-Za-z0-9._-]+:[0-9]+$ ]]; then
+                    reqs="$reqs$1
+"
+                else
+                    die "carve: write each segment as NAME:HOSTS, for example users:120 (got '$1')"
+                fi ;;
+        esac
+        shift
+    done
+    [ -n "$parent" ] || die "carve: give a parent range, for example: ipplan carve 192.0.2.0/24 users:100 guests:40"
+    [ -n "$reqs" ] || die "carve: give at least one NAME:HOSTS"
+    planned='[]'
+    if [ -n "$plan" ]; then
+        read_plan "$plan"
+        planned=$(jq -c '[.segments[]? | .cidr | select(type == "string")]' "$plan")
+    fi
+    reqs_json=$(printf '%s' "$reqs" | jq -R -s -c 'split("\n") | map(select(length > 0) | split(":") | {name: .[0], hosts: (.[1] | tonumber)})')
+    avoid_json=$(printf '%s' "$avoid" | jq -R -s -c --argjson p "$planned" 'split("\n") | map(select(length > 0)) + $p')
+    dup=$(printf '%s' "$reqs_json" | jq -r 'group_by(.name) | map(select(length > 1) | .[0].name) | join(", ")')
+    [ -z "$dup" ] || die "carve: each name once (repeated: $dup)"
+    out=$(jq -n -L "$LIB" --arg parent "$parent" --argjson reqs "$reqs_json" --argjson avoid "$avoid_json" -f "$LIB/carve.jq") \
+        || die "carve failed to run"
+    if [ "$json" = 1 ]; then
+        printf '%s\n' "$out"
+    else
+        if printf '%s' "$out" | jq -e '.ok' >/dev/null; then
+            printf '%s' "$out" | jq -r '(["Segment", "Network", "Gateway", "Usable", "Asked for"] | @tsv),
+                (.segments[] | [.name, .cidr, .gateway, .usable, .hosts_asked] | @tsv)' | column -t -s "$(printf '\t')"
+            printf '%s' "$out" | jq -r '"\n\(.free) addresses left free in \(.parent)."'
+        else
+            printf '%s' "$out" | jq -r '"ipplan: \(.error)"' >&2
+        fi
+    fi
+    printf '%s' "$out" | jq -e '.ok' >/dev/null || return 1
+}
+
+need_jq
+cmd=${1:-help}
+[ $# -gt 0 ] && shift
+case $cmd in
+    check) cmd_check "$@" ;;
+    summary) cmd_summary "$@" ;;
+    info) cmd_info "$@" ;;
+    carve) cmd_carve "$@" ;;
+    version|--version) echo "ipplan $VERSION" ;;
+    help|-h|--help) usage ;;
+    *) usage >&2; exit 64 ;;
+esac

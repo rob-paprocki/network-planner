@@ -1,0 +1,30 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.29/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.29",
+  "version": "1.0.0",
+  "id": "2f0c3bdd-7c61-4847-9dac-840cf527e161",
+  "developer": {
+    "name": "Rob Paprocki",
+    "websiteUrl": "https://github.com/rob-paprocki/network-planner",
+    "privacyUrl": "https://github.com/rob-paprocki/network-planner/blob/main/copilot/PRIVACY.md",
+    "termsOfUseUrl": "https://github.com/rob-paprocki/network-planner/blob/main/LICENSE"
+  },
+  "name": {
+    "short": "Network Planner",
+    "full": "Network Planner for IPv4 segments and VLANs"
+  },
+  "description": {
+    "short": "Plan IPv4 segments, VLANs and addresses, checked before you build.",
+    "full": "Network Planner works through an IPv4 network with you one question at a time: the address space, segments and VLANs, fixed and DHCP blocks, and every device. It sizes and places subnets with Code Interpreter, checks the plan for overlaps, bad boundaries and DHCP clashes, and hands back a plan file, summary tables and the steps to build it."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#1F5FAE",
+  "copilotAgents": {
+    "declarativeAgents": [
+      { "id": "networkPlanner", "file": "declarativeAgent.json" }
+    ]
+  }
+}

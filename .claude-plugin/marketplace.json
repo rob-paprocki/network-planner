@@ -1,0 +1,11 @@
+{
+  "name": "network-planner",
+  "owner": { "name": "rob-paprocki" },
+  "plugins": [
+    {
+      "name": "network-planner",
+      "source": "./",
+      "description": "Plan an IPv4 network: segments, VLANs, address blocks and devices, checked before you build."
+    }
+  ]
+}

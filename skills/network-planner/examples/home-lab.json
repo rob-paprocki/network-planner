@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "name": "Example home lab",
+  "address_space": ["203.0.113.0/24"],
+  "notes": "Sized with ipplan carve 203.0.113.0/24 servers:100 clients:50 mgmt:20 lab:20. The BMC moves into management; the old NAS is being retired.",
+  "segments": [
+    {
+      "id": "servers", "name": "Servers", "vlan": 20, "cidr": "203.0.113.0/25", "gateway": "203.0.113.1",
+      "purpose": "VMs and containers with fixed addresses. Reachable from clients on the ports each service needs.",
+      "blocks": [
+        { "name": "VMs", "start": "203.0.113.1", "end": "203.0.113.63", "kind": "fixed" },
+        { "name": "Containers", "start": "203.0.113.64", "end": "203.0.113.95", "kind": "fixed" },
+        { "name": "Room to grow", "start": "203.0.113.96", "end": "203.0.113.126", "kind": "spare" }
+      ],
+      "devices": [
+        { "name": "dns", "ip": "203.0.113.2", "how": "static", "role": "DNS and DHCP" },
+        { "name": "media", "ip": "203.0.113.10", "how": "static", "role": "Media server" },
+        { "name": "git", "ip": "203.0.113.11", "how": "static", "role": "Code and CI" },
+        { "name": "backup", "ip": "203.0.113.64", "how": "static", "role": "Backup container" }
+      ]
+    },
+    {
+      "id": "clients", "name": "Clients", "vlan": 30, "cidr": "203.0.113.128/26", "gateway": "203.0.113.129",
+      "purpose": "Everyday laptops and phones.",
+      "blocks": [
+        { "name": "Fixed", "start": "203.0.113.129", "end": "203.0.113.143", "kind": "fixed" },
+        { "name": "DHCP", "start": "203.0.113.144", "end": "203.0.113.190", "kind": "pool" }
+      ],
+      "devices": [
+        { "name": "desktop", "ip": "203.0.113.130", "how": "reserved", "role": "Main desktop" },
+        { "name": "laptops", "how": "dynamic", "role": "Any laptop or phone" }
+      ]
+    },
+    {
+      "id": "mgmt", "name": "Management", "vlan": 10, "cidr": "203.0.113.192/27", "gateway": "203.0.113.193",
+      "purpose": "Hypervisors, the switch and out-of-band controllers. Reachable from the admin desktop only.",
+      "blocks": [
+        { "name": "Infrastructure", "start": "203.0.113.193", "end": "203.0.113.207", "kind": "fixed" },
+        { "name": "Room to grow", "start": "203.0.113.208", "end": "203.0.113.222", "kind": "spare" }
+      ],
+      "devices": [
+        { "name": "switch", "ip": "203.0.113.194", "how": "static", "role": "Core switch" },
+        { "name": "hypervisor-1", "ip": "203.0.113.200", "how": "static", "role": "Hypervisor" },
+        { "name": "hypervisor-2", "ip": "203.0.113.201", "how": "static", "role": "Hypervisor" },
+        { "name": "bmc-1", "ip": "203.0.113.202", "how": "reserved", "role": "Out-of-band controller", "current_ip": "203.0.113.150" },
+        { "name": "old-nas", "ip": "203.0.113.203", "how": "retire", "role": "Replaced by the backup container" }
+      ]
+    },
+    {
+      "id": "lab", "name": "Lab", "vlan": 99, "cidr": "203.0.113.224/27", "gateway": "203.0.113.225",
+      "purpose": "Things that get rebuilt. No route to the other segments.",
+      "blocks": [
+        { "name": "Gateway", "start": "203.0.113.225", "end": "203.0.113.225", "kind": "fixed" },
+        { "name": "DHCP", "start": "203.0.113.226", "end": "203.0.113.254", "kind": "pool" }
+      ],
+      "devices": [
+        { "name": "test-vms", "how": "dynamic", "role": "Throwaway VMs" }
+      ]
+    }
+  ]
+}

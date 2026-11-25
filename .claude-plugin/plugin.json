@@ -1,0 +1,13 @@
+{
+  "name": "network-planner",
+  "version": "1.0.0",
+  "description": "Plan an IPv4 network: segments, VLANs, address blocks and devices, checked before you build.",
+  "repository": "https://github.com/rob-paprocki/network-planner",
+  "keywords": [
+    "networking",
+    "subnetting",
+    "vlan",
+    "ip-planning"
+  ],
+  "license": "MIT"
+}

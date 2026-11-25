@@ -1,0 +1,23 @@
+{
+  "name": "host32",
+  "expect": [],
+  "plan": {
+    "schema": 1,
+    "name": "Example small office",
+    "notes": "One /24 split by purpose. The last /27 is held back for growth.",
+    "segments": [
+      {
+        "id": "lo",
+        "name": "Loopback",
+        "cidr": "192.0.2.9/32",
+        "devices": [
+          {
+            "name": "r1",
+            "ip": "192.0.2.9",
+            "how": "static"
+          }
+        ]
+      }
+    ]
+  }
+}

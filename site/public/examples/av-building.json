@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "name": "Example AV and building systems",
+  "address_space": ["172.20.30.0/24"],
+  "notes": "Control gear and audio are set by hand, so most segments have no DHCP pool. Dante and AV-over-IP are kept apart because one carries clocked audio and the other heavy multicast video; turn on IGMP snooping for both.",
+  "segments": [
+    {
+      "id": "control", "name": "AV control", "vlan": 100, "cidr": "172.20.30.0/26", "gateway": "172.20.30.1",
+      "purpose": "Control processors, touch panels and DSPs. The AV team's laptops reach it; nothing else does.",
+      "blocks": [
+        { "name": "Processors and DSPs", "start": "172.20.30.1", "end": "172.20.30.15", "kind": "fixed" },
+        { "name": "Touch panels", "start": "172.20.30.16", "end": "172.20.30.47", "kind": "fixed" },
+        { "name": "Room to grow", "start": "172.20.30.48", "end": "172.20.30.62", "kind": "spare" }
+      ],
+      "devices": [
+        { "name": "processor-1", "ip": "172.20.30.2", "how": "static", "role": "Control processor" },
+        { "name": "dsp-1", "ip": "172.20.30.3", "how": "static", "role": "Audio DSP" },
+        { "name": "panel-boardroom", "ip": "172.20.30.16", "how": "static", "role": "Boardroom touch panel" },
+        { "name": "panel-training", "ip": "172.20.30.17", "how": "static", "role": "Training room touch panel" }
+      ]
+    },
+    {
+      "id": "dante", "name": "Dante audio", "vlan": 110, "cidr": "172.20.30.64/26", "gateway": "172.20.30.65",
+      "purpose": "Networked audio. QoS for clock and audio traffic; no internet.",
+      "blocks": [
+        { "name": "Audio devices", "start": "172.20.30.65", "end": "172.20.30.126", "kind": "fixed" }
+      ],
+      "devices": [
+        { "name": "ceiling-mics-1", "ip": "172.20.30.70", "how": "static", "role": "Ceiling microphone array" },
+        { "name": "amp-1", "ip": "172.20.30.80", "how": "static", "role": "Networked amplifier" },
+        { "name": "dante-pc", "ip": "172.20.30.90", "how": "reserved", "role": "Recording PC" }
+      ]
+    },
+    {
+      "id": "avoip", "name": "AV over IP", "vlan": 120, "cidr": "172.20.30.128/26", "gateway": "172.20.30.129",
+      "purpose": "Video encoders and decoders. Multicast heavy; keep it off the user network.",
+      "blocks": [
+        { "name": "Encoders", "start": "172.20.30.129", "end": "172.20.30.159", "kind": "fixed" },
+        { "name": "Decoders", "start": "172.20.30.160", "end": "172.20.30.190", "kind": "fixed" }
+      ],
+      "devices": [
+        { "name": "enc-lectern", "ip": "172.20.30.130", "how": "static", "role": "Lectern encoder" },
+        { "name": "dec-wall-1", "ip": "172.20.30.160", "how": "static", "role": "Video wall decoder" },
+        { "name": "dec-wall-2", "ip": "172.20.30.161", "how": "static", "role": "Video wall decoder" }
+      ]
+    },
+    {
+      "id": "building", "name": "Building systems", "vlan": 130, "cidr": "172.20.30.192/26", "gateway": "172.20.30.193",
+      "purpose": "HVAC, lighting and access control. Vendor remote access ends here and goes no further.",
+      "blocks": [
+        { "name": "Controllers", "start": "172.20.30.193", "end": "172.20.30.223", "kind": "fixed" },
+        { "name": "DHCP", "start": "172.20.30.224", "end": "172.20.30.254", "kind": "pool" }
+      ],
+      "devices": [
+        { "name": "hvac-controller", "ip": "172.20.30.194", "how": "static", "role": "HVAC controller" },
+        { "name": "lighting-controller", "ip": "172.20.30.195", "how": "static", "role": "Lighting controller" },
+        { "name": "door-controller", "ip": "172.20.30.196", "how": "static", "role": "Access control" },
+        { "name": "sensors", "how": "dynamic", "role": "Occupancy and air-quality sensors" }
+      ]
+    }
+  ]
+}

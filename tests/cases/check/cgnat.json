@@ -1,0 +1,19 @@
+{
+  "name": "cgnat",
+  "expect": [
+    "cgnat-range"
+  ],
+  "plan": {
+    "schema": 1,
+    "name": "Example small office",
+    "notes": "One /24 split by purpose. The last /27 is held back for growth.",
+    "segments": [
+      {
+        "id": "x",
+        "name": "X",
+        "cidr": "100.64.5.0/24",
+        "gateway": "100.64.5.1"
+      }
+    ]
+  }
+}
