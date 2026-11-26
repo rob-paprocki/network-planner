@@ -40,6 +40,13 @@ if command -v node >/dev/null 2>&1; then
         a=$("$NP" check --json "$TMP/case.json" | jq -S -c '.findings | sort_by(.where, .code, .message)')
         b=$(node "$ROOT/site/scripts/check-cli.mjs" "$TMP/case.json" | jq -S -c 'sort_by(.where, .code, .message)')
         if [ "$a" = "$b" ]; then ok; else bad "parity $(jq -r .name "$f"): ipplan $a / js $b"; fi
+        # The Markdown summaries match too, malformed plans included, and ipplan summary doesn't fail on them.
+        if "$NP" summary "$TMP/case.json" > "$TMP/sum-jq.md" 2>"$TMP/sum-jq.err"; then
+            node "$ROOT/site/scripts/summary-cli.mjs" "$TMP/case.json" > "$TMP/sum-js.md"
+            if cmp -s "$TMP/sum-jq.md" "$TMP/sum-js.md"; then ok; else bad "summary parity $(jq -r .name "$f"):"; diff "$TMP/sum-jq.md" "$TMP/sum-js.md" | head -10; fi
+        else
+            bad "summary of case $(jq -r .name "$f") failed: $(head -1 "$TMP/sum-jq.err")"
+        fi
     done
 else
     echo "skip: node not installed, JavaScript parity not tested"

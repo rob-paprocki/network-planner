@@ -1,0 +1,337 @@
+{
+  "name": "vlan-share-site-mismatch",
+  "expect": [
+    "bad-vlan-share"
+  ],
+  "plan": {
+    "schema": 1,
+    "name": "Example three sites",
+    "address_space": [
+      "192.0.2.0/24",
+      "198.51.100.0/24",
+      "203.0.113.0/24"
+    ],
+    "notes": "One /24 per site, the same VLAN numbers at every site (10 staff, 20 voice, 30 management), and a /31 link from head office to each branch.",
+    "segments": [
+      {
+        "id": "hq-staff",
+        "name": "Staff",
+        "site": "Head office",
+        "vlan": 10,
+        "cidr": "192.0.2.0/25",
+        "gateway": "192.0.2.1",
+        "purpose": "Laptops and desktops.",
+        "blocks": [
+          {
+            "name": "Fixed",
+            "start": "192.0.2.1",
+            "end": "192.0.2.15",
+            "kind": "fixed"
+          },
+          {
+            "name": "DHCP",
+            "start": "192.0.2.16",
+            "end": "192.0.2.126",
+            "kind": "pool"
+          }
+        ],
+        "devices": [
+          {
+            "name": "hq-firewall",
+            "ip": "192.0.2.1",
+            "how": "static",
+            "role": "Firewall",
+            "gateway": true
+          },
+          {
+            "name": "hq-printer",
+            "ip": "192.0.2.10",
+            "how": "reserved",
+            "role": "Printer"
+          },
+          {
+            "name": "staff",
+            "how": "dynamic",
+            "role": "Staff devices"
+          }
+        ]
+      },
+      {
+        "id": "hq-voice",
+        "name": "Voice",
+        "site": "Head office",
+        "vlan": 20,
+        "cidr": "192.0.2.128/26",
+        "gateway": "192.0.2.129",
+        "purpose": "Desk phones.",
+        "blocks": [
+          {
+            "name": "Gateway",
+            "start": "192.0.2.129",
+            "end": "192.0.2.129",
+            "kind": "fixed"
+          },
+          {
+            "name": "DHCP",
+            "start": "192.0.2.130",
+            "end": "192.0.2.190",
+            "kind": "pool"
+          }
+        ],
+        "devices": [
+          {
+            "name": "phones",
+            "how": "dynamic",
+            "role": "Desk phones"
+          }
+        ]
+      },
+      {
+        "id": "hq-mgmt",
+        "name": "Management",
+        "site": "Head office",
+        "vlan": 30,
+        "cidr": "192.0.2.192/27",
+        "gateway": "192.0.2.193",
+        "purpose": "Switches and access points.",
+        "blocks": [
+          {
+            "name": "Network gear",
+            "start": "192.0.2.193",
+            "end": "192.0.2.222",
+            "kind": "fixed"
+          }
+        ],
+        "devices": [
+          {
+            "name": "hq-core",
+            "ip": "192.0.2.194",
+            "how": "static",
+            "role": "Core switch"
+          }
+        ]
+      },
+      {
+        "id": "link-a",
+        "name": "Link to branch A",
+        "site": "Head office",
+        "cidr": "192.0.2.224/31",
+        "purpose": "Point-to-point link. Both addresses are usable on a /31.",
+        "devices": [
+          {
+            "name": "hq-firewall-a",
+            "ip": "192.0.2.224",
+            "how": "static",
+            "role": "Head office end"
+          },
+          {
+            "name": "a-firewall-wan",
+            "ip": "192.0.2.225",
+            "how": "static",
+            "role": "Branch A end"
+          }
+        ]
+      },
+      {
+        "id": "link-b",
+        "name": "Link to branch B",
+        "site": "Head office",
+        "cidr": "192.0.2.226/31",
+        "purpose": "Point-to-point link.",
+        "devices": [
+          {
+            "name": "hq-firewall-b",
+            "ip": "192.0.2.226",
+            "how": "static",
+            "role": "Head office end"
+          },
+          {
+            "name": "b-firewall-wan",
+            "ip": "192.0.2.227",
+            "how": "static",
+            "role": "Branch B end"
+          }
+        ]
+      },
+      {
+        "id": "a-staff",
+        "name": "Staff",
+        "site": "Branch A",
+        "vlan": 10,
+        "cidr": "198.51.100.0/25",
+        "gateway": "198.51.100.1",
+        "blocks": [
+          {
+            "name": "Fixed",
+            "start": "198.51.100.1",
+            "end": "198.51.100.15",
+            "kind": "fixed"
+          },
+          {
+            "name": "DHCP",
+            "start": "198.51.100.16",
+            "end": "198.51.100.126",
+            "kind": "pool"
+          }
+        ],
+        "devices": [
+          {
+            "name": "a-firewall",
+            "ip": "198.51.100.1",
+            "how": "static",
+            "role": "Firewall",
+            "gateway": true
+          },
+          {
+            "name": "staff",
+            "how": "dynamic",
+            "role": "Staff devices"
+          }
+        ]
+      },
+      {
+        "id": "a-voice",
+        "name": "Voice",
+        "site": "Branch A",
+        "vlan": 20,
+        "cidr": "198.51.100.128/26",
+        "gateway": "198.51.100.129",
+        "blocks": [
+          {
+            "name": "Gateway",
+            "start": "198.51.100.129",
+            "end": "198.51.100.129",
+            "kind": "fixed"
+          },
+          {
+            "name": "DHCP",
+            "start": "198.51.100.130",
+            "end": "198.51.100.190",
+            "kind": "pool"
+          }
+        ],
+        "devices": [
+          {
+            "name": "phones",
+            "how": "dynamic",
+            "role": "Desk phones"
+          }
+        ],
+        "shares_vlan_with": "hq-voice"
+      },
+      {
+        "id": "a-mgmt",
+        "name": "Management",
+        "site": "Branch A",
+        "vlan": 30,
+        "cidr": "198.51.100.192/27",
+        "gateway": "198.51.100.193",
+        "blocks": [
+          {
+            "name": "Network gear",
+            "start": "198.51.100.193",
+            "end": "198.51.100.222",
+            "kind": "fixed"
+          }
+        ],
+        "devices": [
+          {
+            "name": "a-switch",
+            "ip": "198.51.100.194",
+            "how": "static",
+            "role": "Switch"
+          }
+        ]
+      },
+      {
+        "id": "b-staff",
+        "name": "Staff",
+        "site": "Branch B",
+        "vlan": 10,
+        "cidr": "203.0.113.0/25",
+        "gateway": "203.0.113.1",
+        "blocks": [
+          {
+            "name": "Fixed",
+            "start": "203.0.113.1",
+            "end": "203.0.113.15",
+            "kind": "fixed"
+          },
+          {
+            "name": "DHCP",
+            "start": "203.0.113.16",
+            "end": "203.0.113.126",
+            "kind": "pool"
+          }
+        ],
+        "devices": [
+          {
+            "name": "b-firewall",
+            "ip": "203.0.113.1",
+            "how": "static",
+            "role": "Firewall",
+            "gateway": true
+          },
+          {
+            "name": "staff",
+            "how": "dynamic",
+            "role": "Staff devices"
+          }
+        ]
+      },
+      {
+        "id": "b-voice",
+        "name": "Voice",
+        "site": "Branch B",
+        "vlan": 20,
+        "cidr": "203.0.113.128/26",
+        "gateway": "203.0.113.129",
+        "blocks": [
+          {
+            "name": "Gateway",
+            "start": "203.0.113.129",
+            "end": "203.0.113.129",
+            "kind": "fixed"
+          },
+          {
+            "name": "DHCP",
+            "start": "203.0.113.130",
+            "end": "203.0.113.190",
+            "kind": "pool"
+          }
+        ],
+        "devices": [
+          {
+            "name": "phones",
+            "how": "dynamic",
+            "role": "Desk phones"
+          }
+        ]
+      },
+      {
+        "id": "b-mgmt",
+        "name": "Management",
+        "site": "Branch B",
+        "vlan": 30,
+        "cidr": "203.0.113.192/27",
+        "gateway": "203.0.113.193",
+        "blocks": [
+          {
+            "name": "Network gear",
+            "start": "203.0.113.193",
+            "end": "203.0.113.222",
+            "kind": "fixed"
+          }
+        ],
+        "devices": [
+          {
+            "name": "b-switch",
+            "ip": "203.0.113.194",
+            "how": "static",
+            "role": "Switch"
+          }
+        ]
+      }
+    ]
+  }
+}

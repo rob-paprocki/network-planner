@@ -3,6 +3,8 @@
 import { check, carve, cidr, ip2n, n2ip, usable, firstHost, lastHost, reserved, summary, scopeOf, classOf, KINDS, HOWS } from "./ipplan.js";
 
 const STORE = "netplanner.plan.v1";
+const COLOUR_STORE = "netplanner.mapcolour";
+const COLOURS = ["auto", "segment", "block"];
 const HUES = 8;
 const $ = (s) => document.querySelector(s);
 
@@ -10,6 +12,7 @@ let plan = load() || blank();
 let sel = 0;          // selected segment index
 let mapBase = null;   // first address of the /24 shown in the map
 let pick = null;      // selected address in the map
+let mapColour = loadColour(); // what the map's colours stand for: auto, segment or block
 
 function blank() { return { schema: 1, name: "", address_space: [], notes: "", segments: [] }; }
 // The editors need lists of objects. A plan with the wrong shape is refused rather than half-loaded;
@@ -24,6 +27,9 @@ function load() {
   try { const s = localStorage.getItem(STORE); const p = s ? JSON.parse(s) : null; return p && !shapeProblem(p) ? p : null; } catch { return null; }
 }
 function save() { try { localStorage.setItem(STORE, JSON.stringify(plan)); } catch { /* private window: keep going */ } }
+function loadColour() {
+  try { const v = localStorage.getItem(COLOUR_STORE); return COLOURS.includes(v) ? v : "auto"; } catch { return "auto"; }
+}
 
 function h(tag, props, ...kids) {
   const e = document.createElement(tag);
@@ -56,8 +62,8 @@ function renderStatus(findings) {
     ? h("ul", { class: "findings" }, findings.map((f) => h("li", { class: f.level }, h("span", { class: "where", text: f.where + ": " }), f.message)))
     : null;
   $("#status").replaceChildren(
-    st(String(segs().length), "segments"),
-    st(String(devices), "devices"),
+    st(String(segs().length), segs().length === 1 ? "segment" : "segments"),
+    st(String(devices), devices === 1 ? "device" : "devices"),
     st(String(err.length), "errors", err.length ? "bad" : "ok"),
     st(String(warn.length), "warnings", warn.length ? "warn" : ""),
     list || h("div", { class: "hint", text: segs().length ? "No problems found." : "Add a segment, size some with the tool below, or load the example." }),
@@ -104,6 +110,20 @@ function renderMap(findings) {
   }
   const segAt = (n) => parsed.find((x) => n >= x.c.net && n <= x.c.bcast);
   const blockAt = (s, n) => (s.blocks || []).find((b) => ip2n(b.start) != null && ip2n(b.end) != null && n >= ip2n(b.start) && n <= ip2n(b.end));
+  const inView = parsed.filter((x) => x.c.net < mapBase + 256 && x.c.bcast >= mapBase);
+  // The blocks in view, in plan order. Spare blocks are grey (--h7); the others take the next of
+  // the other seven hues, so no other block shares the spare grey.
+  const shown = [];
+  let k = 0;
+  for (const x of inView) for (const b of x.s.blocks || []) {
+    const lo = ip2n(b.start), hi = ip2n(b.end);
+    if (lo == null || hi == null || lo > hi || lo >= mapBase + 256 || hi < mapBase) continue;
+    shown.push({ b, x, lo, hi, colour: b.kind === "spare" ? `var(--h${HUES - 1})` : hue(k++ % (HUES - 1)) });
+  }
+  // Colour by block when asked, or in Auto when one segment fills the view and has blocks in it
+  // (a flat network cut into blocks). A segment with no blocks keeps its segment colour and legend row.
+  const byBlock = mapColour === "block" || (mapColour === "auto" && inView.length === 1 && shown.length > 0);
+  const blockColour = new Map(shown.map((e) => [e.b, e.colour]));
   const cells = [];
   for (let n = mapBase; n < mapBase + 256; n++) {
     const sg = segAt(n), ds = occ.get(n) || [];
@@ -116,14 +136,26 @@ function renderMap(findings) {
     const what = netbc ? (n === sg.c.net ? "network address (reserved)" : "broadcast address (reserved)") : b ? b.name : "";
     const title = `${n2ip(n)}${sg ? ", " + (sg.s.name || sg.s.id) : ""}${what ? ", " + what : ""}${gw ? ", gateway" : ""}${ds.length ? ": " + ds.map((x) => x.d.name).join(" and ") : ""}`;
     const c = h("button", { type: "button", class: cls, title, "aria-label": title, onclick: () => { pick = pick === n ? null : n; renderMap(findings); } }, String(n % 256));
-    if (sg) c.style.setProperty("--c", hue(sg.i));
+    // By block, an address in a segment but in no block keeps the neutral tint.
+    const colour = !sg ? null : byBlock ? (b && blockColour.get(b)) || null : hue(sg.i);
+    if (colour) c.style.setProperty("--c", colour);
     cells.push(c);
   }
   $("#map").replaceChildren(...cells);
-  $("#legend").replaceChildren(...parsed.filter((x) => x.c.net < mapBase + 256 && x.c.bcast >= mapBase).map(({ s, i, c }) => {
-    const sw = h("span", { class: "sw" }); sw.style.setProperty("--c", hue(i));
-    return h("div", { class: "lg" }, sw, h("span", { text: s.name || s.id || "unnamed" }), h("span", { class: "rng", text: `${s.cidr}${s.vlan ? ", VLAN " + s.vlan : ""}${s.site ? ", " + s.site : ""}` }));
-  }), h("div", { class: "hint", text: "Shaded: DHCP pool. Outlined: in use. Bold: gateway. Grey hatched: network or broadcast address, reserved. Light hatched: in no segment." }));
+  const legendRows = byBlock
+    ? shown.map(({ b, x, lo, hi, colour }) => {
+      const sw = h("span", { class: "sw" }); sw.style.setProperty("--c", colour);
+      const used = (x.s.devices || []).filter((d) => { const n = ip2n(d.ip); return d.how !== "retire" && n != null && n >= lo && n <= hi; }).length;
+      return h("div", { class: "lg" }, sw, h("span", { text: b.name || "unnamed" }), h("span", { class: "rng", text: `${b.start} - ${b.end}, ${b.kind || "fixed"}, ${used}/${hi - lo + 1} used` }));
+    })
+    : inView.map(({ s, i }) => {
+      const sw = h("span", { class: "sw" }); sw.style.setProperty("--c", hue(i));
+      return h("div", { class: "lg" }, sw, h("span", { text: s.name || s.id || "unnamed" }), h("span", { class: "rng", text: `${s.cidr}${s.vlan ? ", VLAN " + s.vlan : ""}${typeof s.shares_vlan_with === "string" ? " (shared with " + s.shares_vlan_with + ")" : ""}${s.site ? ", " + s.site : ""}` }));
+    });
+  const keyText = byBlock
+    ? "Each colour is a block. Shaded: DHCP pool. Outlined: in use. Bold: gateway. Grey hatched: network or broadcast address, reserved. Light hatched: in no segment."
+    : "Shaded: DHCP pool. Outlined: in use. Bold: gateway. Grey hatched: network or broadcast address, reserved. Light hatched: in no segment.";
+  $("#legend").replaceChildren(...legendRows, h("div", { class: "hint", text: keyText }));
   const pk = $("#pick");
   if (pick == null || pick < mapBase || pick >= mapBase + 256) { pk.hidden = true; return; }
   const sg = segAt(pick), ds = occ.get(pick) || [];
@@ -140,7 +172,7 @@ function field(obj, key, opts = {}) {
   const v = obj[key];
   return h("input", {
     class: opts.mono ? "mono" : "", value: v == null ? "" : String(v), placeholder: opts.ph || "", "aria-label": opts.label || key,
-    size: String(opts.size || (opts.mono ? 17 : 14)),
+    size: String(opts.size || (opts.mono ? 17 : 14)), list: opts.list,
     onchange: (e) => {
       const raw = e.target.value.trim();
       if (raw === "") delete obj[key];
@@ -167,7 +199,7 @@ const issuesFor = (findings, prefix) => findings.filter((f) => f.where === prefi
 const issueCell = (list) => h("td", { class: "iss" + (list.length && list.every((f) => f.level === "warning") ? " warn" : "") }, list.map((f) => f.message).join(" ") || h("span", { class: "hint", text: "ok" }));
 
 function renderSegments(findings) {
-  const head = h("tr", {}, ["", "Id", "Name", "Site", "VLAN", "Range", "Gateway", "Usable", "Purpose", "Check", ""].map((t) => h("th", { text: t })));
+  const head = h("tr", {}, ["", "Id", "Name", "Site", "VLAN", "Shares VLAN", "Range", "Gateway", "Usable", "Purpose", "Check", ""].map((t) => h("th", { text: t })));
   const rows = segs().map((s, i) => {
     const c = cidr(s.cidr);
     const sw = h("span", { class: "sw" }); sw.style.setProperty("--c", hue(i));
@@ -179,6 +211,7 @@ function renderSegments(findings) {
       h("td", {}, field(s, "name", { label: "Segment name", ph: "Staff" })),
       h("td", {}, field(s, "site", { label: "Site", ph: "optional", size: 12 })),
       h("td", {}, field(s, "vlan", { label: "VLAN", number: true, ph: "30", size: 5 })),
+      h("td", {}, field(s, "shares_vlan_with", { label: "Shares VLAN with", ph: "segment id", size: 10 })),
       h("td", {}, field(s, "cidr", { label: "Range", mono: true, ph: "192.0.2.0/26" })),
       h("td", {}, field(s, "gateway", { label: "Gateway", mono: true, ph: c ? n2ip(firstHost(c)) : "" })),
       h("td", { class: "rng", text: c ? String(usable(c)) : "-" }),
@@ -187,7 +220,7 @@ function renderSegments(findings) {
       h("td", {}, delBtn(label, () => { segs().splice(i, 1); sel = Math.max(0, Math.min(sel, segs().length - 1)); })),
     );
   });
-  $("#segTable").replaceChildren(h("thead", {}, head), h("tbody", {}, rows.length ? rows : h("tr", {}, h("td", { colspan: "11", class: "hint", text: "No segments yet." }))));
+  $("#segTable").replaceChildren(h("thead", {}, head), h("tbody", {}, rows.length ? rows : h("tr", {}, h("td", { colspan: "12", class: "hint", text: "No segments yet." }))));
 }
 
 function renderDetail(findings) {
@@ -211,7 +244,18 @@ function renderDetail(findings) {
       h("td", {}, delBtn("block", () => s.blocks.splice(j, 1))),
     );
   });
-  const dHead = h("tr", {}, ["Device", "Address", "Now at", "How", "Gateway", "Role", "Note", "Check", ""].map((t) => h("th", { text: t })));
+  const dHead = h("tr", {}, ["Device", "Address", "Now at", "How", "Gateway", "Role", "Runs on", "Note", "Check", ""].map((t) => h("th", { text: t })));
+  // Suggestions for "Runs on": every device name in the plan, retiring ones too. Focusing a row's
+  // field drops that row's own name from the list, since a device can't run on itself.
+  const names = [...new Set(segs().flatMap((x) => (Array.isArray(x.devices) ? x.devices : [])).map((d) => d && d.name).filter((n) => typeof n === "string" && n !== ""))];
+  const nameList = h("datalist", { id: "deviceNames" });
+  const suggest = (self) => nameList.replaceChildren(...names.filter((n) => n !== self).map((n) => h("option", { value: n })));
+  suggest(null);
+  const runsOnField = (d) => {
+    const f = field(d, "runs_on", { label: "Runs on", ph: "device name", size: 12, list: "deviceNames" });
+    f.addEventListener("focus", () => suggest(d.name));
+    return f;
+  };
   const dRows = s.devices.map((d, j) => h("tr", {},
     h("td", {}, field(d, "name", { label: "Device name" })),
     h("td", {}, field(d, "ip", { label: "Planned address", mono: true, ph: d.how === "dynamic" ? "from the pool" : "" })),
@@ -219,6 +263,7 @@ function renderDetail(findings) {
     h("td", {}, pickList(d, "how", HOWS, "How", "reserved")),
     h("td", {}, h("input", { type: "checkbox", "aria-label": "Is the gateway", checked: d.gateway === true, onchange: (e) => { if (e.target.checked) d.gateway = true; else delete d.gateway; changed(); } })),
     h("td", {}, field(d, "role", { label: "Role", size: 20 })),
+    h("td", {}, runsOnField(d)),
     h("td", { class: "w-wide" }, field(d, "note", { label: "Note", size: 24 })),
     issueCell(issuesFor(findings, `${label}, device ${d.name ?? "unnamed"}`)),
     h("td", {}, delBtn("device", () => s.devices.splice(j, 1))),
@@ -236,8 +281,9 @@ function renderDetail(findings) {
       h("div", { class: "sechead" }, h("h3", { text: "Blocks" }), h("button", { type: "button", class: "btn", onclick: addBlock }, "Add block")),
       h("div", { class: "scroll" }, h("table", {}, h("thead", {}, bHead), h("tbody", {}, bRows.length ? bRows : h("tr", {}, h("td", { colspan: "8", class: "hint", text: "No blocks. Split the range into fixed, pool and spare blocks." }))))),
       h("div", { class: "sechead" }, h("h3", { text: "Devices" }), h("button", { type: "button", class: "btn", onclick: () => { s.devices.push({ name: "new device", how: "reserved" }); changed(); } }, "Add device")),
-      h("div", { class: "scroll" }, h("table", {}, h("thead", {}, dHead), h("tbody", {}, dRows.length ? dRows : h("tr", {}, h("td", { colspan: "9", class: "hint", text: "No devices yet." }))))),
+      h("div", { class: "scroll" }, h("table", {}, h("thead", {}, dHead), h("tbody", {}, dRows.length ? dRows : h("tr", {}, h("td", { colspan: "10", class: "hint", text: "No devices yet." }))))),
     ),
+    nameList,
   );
 }
 
@@ -262,6 +308,12 @@ $("#planName").addEventListener("change", (e) => { plan.name = e.target.value.tr
 $("#space").addEventListener("change", (e) => { plan.address_space = e.target.value.split(/[\s,]+/).filter(Boolean); changed(); });
 $("#notes").addEventListener("change", (e) => { if (e.target.value.trim()) plan.notes = e.target.value; else delete plan.notes; changed(); });
 $("#mapWindow").addEventListener("change", (e) => { mapBase = Number(e.target.value); pick = null; render(); });
+$("#mapColour").value = mapColour;
+$("#mapColour").addEventListener("change", (e) => {
+  mapColour = COLOURS.includes(e.target.value) ? e.target.value : "auto";
+  try { localStorage.setItem(COLOUR_STORE, mapColour); } catch { /* private window: keep going */ }
+  renderMap(check(plan));
+});
 $("#btnNew").addEventListener("click", () => {
   if (segs().length && !confirmArm($("#btnNew"))) return;
   plan = blank(); sel = 0; mapBase = null; changed();

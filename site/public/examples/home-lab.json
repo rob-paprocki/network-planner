@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "name": "Example home lab",
-  "address_space": ["203.0.113.0/24"],
-  "notes": "Sized with ipplan carve 203.0.113.0/24 servers:100 clients:50 mgmt:20 lab:20. The BMC moves into management; the old NAS is being retired.",
+  "address_space": ["203.0.113.0/24", "192.168.1.0/24"],
+  "notes": "Sized with ipplan carve 203.0.113.0/24 servers:100 clients:50 mgmt:20 lab:20. The old flat network shares the clients VLAN until the move is done; the desktop and the BMC still have to move.",
   "segments": [
     {
       "id": "servers", "name": "Servers", "vlan": 20, "cidr": "203.0.113.0/25", "gateway": "203.0.113.1",
@@ -27,7 +27,7 @@
         { "name": "DHCP", "start": "203.0.113.144", "end": "203.0.113.190", "kind": "pool" }
       ],
       "devices": [
-        { "name": "desktop", "ip": "203.0.113.130", "how": "reserved", "role": "Main desktop" },
+        { "name": "desktop", "ip": "203.0.113.130", "how": "reserved", "role": "Main desktop", "current_ip": "192.168.1.20" },
         { "name": "laptops", "how": "dynamic", "role": "Any laptop or phone" }
       ]
     },
@@ -42,7 +42,7 @@
         { "name": "switch", "ip": "203.0.113.194", "how": "static", "role": "Core switch" },
         { "name": "hypervisor-1", "ip": "203.0.113.200", "how": "static", "role": "Hypervisor" },
         { "name": "hypervisor-2", "ip": "203.0.113.201", "how": "static", "role": "Hypervisor" },
-        { "name": "bmc-1", "ip": "203.0.113.202", "how": "reserved", "role": "Out-of-band controller", "current_ip": "203.0.113.150" },
+        { "name": "bmc-1", "ip": "203.0.113.202", "how": "reserved", "role": "Out-of-band controller", "current_ip": "192.168.1.50" },
         { "name": "old-nas", "ip": "203.0.113.203", "how": "retire", "role": "Replaced by the backup container" }
       ]
     },
@@ -55,6 +55,18 @@
       ],
       "devices": [
         { "name": "test-vms", "how": "dynamic", "role": "Throwaway VMs" }
+      ]
+    },
+    {
+      "id": "old-lan", "name": "Old flat network", "vlan": 30, "shares_vlan_with": "clients", "cidr": "192.168.1.0/24", "gateway": "192.168.1.1",
+      "purpose": "The old router's network. It runs on the clients VLAN until every device has moved, then goes away.",
+      "blocks": [
+        { "name": "Router", "start": "192.168.1.1", "end": "192.168.1.1", "kind": "fixed" },
+        { "name": "DHCP", "start": "192.168.1.100", "end": "192.168.1.199", "kind": "pool" }
+      ],
+      "devices": [
+        { "name": "old-router", "ip": "192.168.1.1", "how": "static", "role": "Old consumer router", "gateway": true },
+        { "name": "not-yet-moved", "how": "dynamic", "role": "Anything still on the old network" }
       ]
     }
   ]

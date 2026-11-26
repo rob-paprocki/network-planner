@@ -28,6 +28,7 @@
         <option value="small-office">Small office</option>
         <option value="home">Home</option>
         <option value="home-lab">Home lab</option>
+        <option value="flat-lab">Flat home lab</option>
         <option value="av-building">AV and building systems</option>
         <option value="three-sites">Three sites</option>
       </select>
@@ -59,7 +60,14 @@
 
   <section>
     <div class="sechead"><h2>Address map</h2>
-      <label class="hint">Showing <select id="mapWindow" aria-label="Which /24 to show"></select></label>
+      <div class="actions">
+        <label class="hint">Showing <select id="mapWindow" aria-label="Which /24 to show"></select></label>
+        <label class="hint">Colour by <select id="mapColour" aria-label="Colour the map by">
+          <option value="auto">Auto</option>
+          <option value="segment">Segment</option>
+          <option value="block">Block</option>
+        </select></label>
+      </div>
     </div>
     <div class="mapwrap">
       <div class="panel"><div class="map" id="map"></div></div>

@@ -34,8 +34,9 @@
       "properties": {
         "id": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$", "description": "Short unique key, such as users." },
         "name": { "type": "string" },
-        "site": { "type": "string", "description": "Which site this segment belongs to. VLAN numbers only have to be unique within a site." },
+        "site": { "type": "string", "description": "Which site this segment belongs to. Segments at different sites can reuse the same VLAN numbers." },
         "vlan": { "type": "integer", "minimum": 1, "maximum": 4094 },
+        "shares_vlan_with": { "type": "string", "description": "The id of another segment at the same site whose VLAN this segment shares on purpose, such as a secondary subnet on one router interface, or old and new subnets side by side during a re-IP. Both segments need the same vlan. On a VLAN shared this way, every segment except one sets this field." },
         "cidr": { "$ref": "#/$defs/cidr" },
         "gateway": { "$ref": "#/$defs/ipv4" },
         "purpose": { "type": "string", "description": "Who and what lives here, and what it may reach." },
@@ -70,6 +71,7 @@
           "description": "static: set on the device. reserved: a DHCP reservation. dynamic: any pool address. retire: going away."
         },
         "gateway": { "type": "boolean", "description": "True for the device that is the segment's gateway." },
+        "runs_on": { "type": "string", "description": "The name of another device in the plan that this one runs on, such as the hypervisor under a VM or container. The host can be in any segment, and a retiring device counts." },
         "role": { "type": "string" },
         "note": { "type": "string" }
       }

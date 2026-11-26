@@ -4,6 +4,10 @@ include "ipplan";
 def E($w; $c; $m): {level: "error", where: $w, code: $c, message: $m};
 def W($w; $c; $m): {level: "warning", where: $w, code: $c, message: $m};
 
+# A number as plain arithmetic leaves it, so jq 1.7 writes a VLAN of 30.0 or 3e1 as 30, like the
+# JavaScript checker does. Anything else passes through.
+def num_text: if type == "number" then . + 0 else . end;
+
 def KINDS: ["fixed", "pool", "spare"];
 def HOWS: ["static", "reserved", "dynamic", "retire"];
 
@@ -15,9 +19,8 @@ def bad_cidr($w; $field; $v):
   if ($v | is_v6) then E($w; "ipv6-unsupported"; "\($field) \($v) is IPv6; this version plans IPv4 only.")
   else E($w; "bad-cidr"; "\($field) \($v | tojson) isn't a CIDR range like 192.0.2.0/24.") end;
 
-# The object entries of a list; anything else (a string, null, a number) yields nothing.
-# Malformed entries are reported by shape_errors, not crashed on.
-def objects_in: if type == "array" then .[] | select(type == "object") else empty end;
+# objects_in (in ipplan.jq) gives the object entries of a list. Malformed entries are reported by
+# shape_errors, not crashed on.
 
 # A list field that isn't a list, or holds entries that aren't objects.
 def shape_errors($where; $field; $v):
@@ -63,7 +66,27 @@ def range_findings($w; $raw; $c; $warn):
 
 def block_of($seg; $n): [ $seg.blocks[] | select(.s != null and .e != null and $n >= .s and $n <= .e) ] | first;
 
-def check_segment($space):
+# Why a segment's "shares_vlan_with" doesn't hold, or null when it holds or isn't set.
+# The first segment in plan order with that id is the one it names.
+def share_problem($segs):
+  .raw as $s | $s.shares_vlan_with as $v
+  | if $v == null then null
+    elif ($v | type) != "string" then "\"shares_vlan_with\" must be the id of another segment."
+    elif $v == $s.id then "\"shares_vlan_with\" names this segment itself."
+    else
+      ([ $segs[] | select(.raw.id == $v) ] | first) as $t
+      | if $t == null then "\"shares_vlan_with\" names segment \($v), which isn't in the plan."
+        elif $t.raw.site != $s.site then "Shares a VLAN with segment \($v), which is at a different site."
+        elif $s.vlan == null or $t.raw.vlan == null then "Shares a VLAN with segment \($v), so both need the same \"vlan\"."
+        elif $t.raw.vlan != $s.vlan then
+          "Shares a VLAN with segment \($v), but that segment is on VLAN \($t.raw.vlan | num_text) and this one is on VLAN \($s.vlan | num_text)."
+        else null end
+    end;
+
+# The segment says which segment's VLAN it shares, and that holds up.
+def shares_vlan($segs): .raw.shares_vlan_with != null and share_problem($segs) == null;
+
+def check_segment($space; $segs):
   . as $g | $g.label as $L
   | shape_errors($L; "blocks"; $g.raw.blocks),
     shape_errors($L; "devices"; $g.raw.devices),
@@ -77,8 +100,9 @@ def check_segment($space):
     (if $g.c != null and $g.c.aligned then range_findings($L; $g.raw.cidr; $g.c; true) else empty end),
     (if $g.raw.vlan == null then empty
      elif ($g.raw.vlan | type) != "number" or $g.raw.vlan != ($g.raw.vlan | floor) or $g.raw.vlan < 1 or $g.raw.vlan > 4094 then
-       E($L; "vlan-range"; "VLAN \($g.raw.vlan | tojson) is outside 1-4094.")
+       E($L; "vlan-range"; "VLAN \($g.raw.vlan | num_text | tojson) is outside 1-4094.")
      else empty end),
+    ($g | share_problem($segs) | if . != null then E($L; "bad-vlan-share"; .) else empty end),
     (if $g.c != null and ($space | length) > 0 and ([ $space[] | select(.c != null) | .c | contains_c($g.c) ] | any | not) then
        E($L; "outside-space"; "\($g.raw.cidr) isn't inside the plan's address_space.")
      else empty end),
@@ -125,6 +149,14 @@ def check_segment($space):
         (if $d.raw.gateway == true and $d.how != "retire" and $g.gw != null and $d.n != null and $d.n != $g.gw then
            W($DL; "gateway-mismatch"; "Marked as the gateway, but the segment's gateway is \($g.raw.gateway), not \($d.raw.ip).")
          else empty end),
+        # "runs_on" names the device this one runs on. Any device in the plan counts, a retiring one too.
+        ($d.raw.runs_on as $on
+         | if $on == null then empty
+           elif ($on | type) != "string" then E($DL; "bad-runs-on"; "\"runs_on\" must be the name of another device.")
+           elif $on == $d.raw.name then E($DL; "bad-runs-on"; "\"runs_on\" names this device itself.")
+           elif (any($segs[].devices[]; .raw.name == $on) | not) then
+             W($DL; "runs-on-missing"; "\"runs_on\" names \($on), which isn't a device in the plan.")
+           else empty end),
         (if $d.how == "retire" then empty
          elif $d.raw.ip == null then
            (if $d.how == "dynamic" then empty else E($DL; "needs-address"; "A \($d.how) device needs a planned \"ip\".") end)
@@ -161,7 +193,7 @@ else
         | if $c == null then bad_cidr("address_space"; "range"; $r)
           elif ($c.aligned | not) then E("address_space"; "misaligned-cidr"; "\($r) doesn't start on a /\($c.prefix) boundary. Did you mean \($c | cidr_str)?")
           else range_findings("address_space"; $r; $c; false) end ),
-      ( $segs[] | check_segment($space) ),
+      ( $segs[] | check_segment($space; $segs) ),
       ( [ $segs[] | select(.c != null) ] as $cs
         | range(0; $cs | length) as $x | range($x + 1; $cs | length) as $y
         | select(overlaps($cs[$x].c; $cs[$y].c))
@@ -169,9 +201,13 @@ else
       ( [ $segs[] | .raw.id | select(. != null) ] | group_by(.) | map(select(length > 1))[]
         | E("segment \(.[0])"; "duplicate-id"; "\(length) segments share the id \(.[0] | tojson).") ),
       # VLAN numbers only have to be unique within a site; segments with no site share one scope.
-      ( [ $segs[] | select(.raw.vlan != null) | {v: .raw.vlan, site: .raw.site, id} ] | group_by([.site, .v]) | map(select(length > 1))[]
-        | (if .[0].site != null then " at site \(.[0].site)" else "" end) as $at
-        | E("vlan \(.[0].v)\($at)"; "duplicate-vlan"; "Segments \(map(.id) | join(", ")) share VLAN \(.[0].v)\($at).") ),
+      # A shared VLAN is fine when all but one of its segments say so with "shares_vlan_with".
+      ( [ $segs[] | select(.raw.vlan != null) | {v: .raw.vlan, site: .raw.site, id, ok: shares_vlan($segs)} ]
+        | group_by([.site, .v]) | map(select(length > 1 and ([ .[] | select(.ok | not) ] | length) > 1))[]
+        | (if .[0].site != null then " at site \(.[0].site | num_text)" else "" end) as $at
+        | (.[0].v | num_text) as $v
+        | W("vlan \($v)\($at)"; "duplicate-vlan";
+            "Segments \(map(.id) | join(", ")) share VLAN \($v)\($at). If that's on purpose, add \"shares_vlan_with\" to all but one of them.") ),
       ( [ $segs[] | .id as $sid | .devices[] | select(.how != "retire" and .n != null) | {n, name, sid: $sid} ]
         | group_by(.n) | map(select(length > 1))[]
         | E("address \(.[0].n | n2ip)"; "duplicate-address"; "Planned for more than one device: \(map("\(.name) (\(.sid))") | join(", ")).") )

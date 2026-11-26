@@ -49,6 +49,10 @@ export function prefixFor(hosts) {
 }
 
 const J = (v) => (v === undefined ? "null" : JSON.stringify(v));
+/** A value the way jq's string interpolation writes it: strings as-is, anything else as JSON. */
+const S = (v) => (typeof v === "string" ? v : J(v));
+/** jq's `a // b`: the default when the value is missing, null or false. */
+const alt = (v, d) => (v == null || v === false ? d : v);
 const E = (where, code, message) => ({ level: "error", where, code, message });
 const W = (where, code, message) => ({ level: "warning", where, code, message });
 
@@ -66,6 +70,8 @@ function badCidr(w, field, v) {
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 /** The object entries of a list; anything else yields nothing. shapeErrors reports the rest. */
 export const objectsIn = (v) => (Array.isArray(v) ? v.filter(isObj) : []);
+/** A value as JSON with object keys sorted, so two values get the same text exactly when jq's == calls them equal. */
+const K = (v) => JSON.stringify(v ?? null, (k, x) => (isObj(x) ? Object.fromEntries(Object.keys(x).sort().map((q) => [q, x[q]])) : x));
 
 function shapeErrors(where, field, v, out) {
   if (v == null) return;
@@ -75,11 +81,11 @@ function shapeErrors(where, field, v, out) {
 
 function segments(plan) {
   return objectsIn(plan.segments).map((s, i) => {
-    const id = s.id ?? `#${i + 1}`;
+    const id = alt(s.id, `#${i + 1}`);
     return {
       i, id, raw: s, c: cidr(s.cidr), label: `segment ${id}`, gw: ip2n(s.gateway),
-      blocks: objectsIn(s.blocks).map((b) => ({ raw: b, name: b.name ?? "unnamed", kind: b.kind ?? "fixed", s: ip2n(b.start), e: ip2n(b.end) })),
-      devices: objectsIn(s.devices).map((d) => ({ raw: d, name: d.name ?? "unnamed", how: d.how ?? "reserved", n: ip2n(d.ip), cur: ip2n(d.current_ip) })),
+      blocks: objectsIn(s.blocks).map((b) => ({ raw: b, name: alt(b.name, "unnamed"), kind: alt(b.kind, "fixed"), s: ip2n(b.start), e: ip2n(b.end) })),
+      devices: objectsIn(s.devices).map((d) => ({ raw: d, name: alt(d.name, "unnamed"), how: alt(d.how, "reserved"), n: ip2n(d.ip), cur: ip2n(d.current_ip) })),
     };
   });
 }
@@ -104,7 +110,22 @@ function rangeFindings(w, raw, c, warn, out) {
 
 const blockOf = (g, n) => g.blocks.find((b) => b.s != null && b.e != null && n >= b.s && n <= b.e) || null;
 
-function checkSegment(g, space, out) {
+/** What's wrong with a segment's "shares_vlan_with", or null when it names a segment on the same VLAN and site.
+ * Only called when the field is present. */
+function vlanShareProblem(g, segs) {
+  const raw = g.raw, v = raw.shares_vlan_with;
+  if (typeof v !== "string") return '"shares_vlan_with" must be the id of another segment.';
+  if (v === raw.id) return '"shares_vlan_with" names this segment itself.';
+  const t = segs.find((x) => x.raw.id === v);
+  if (!t) return `"shares_vlan_with" names segment ${v}, which isn't in the plan.`;
+  if (K(t.raw.site) !== K(raw.site)) return `Shares a VLAN with segment ${v}, which is at a different site.`;
+  if (raw.vlan == null || t.raw.vlan == null) return `Shares a VLAN with segment ${v}, so both need the same "vlan".`;
+  if (K(t.raw.vlan) !== K(raw.vlan)) return `Shares a VLAN with segment ${v}, but that segment is on VLAN ${S(t.raw.vlan)} and this one is on VLAN ${S(raw.vlan)}.`;
+  return null;
+}
+const sharesVlan = (g, segs) => g.raw.shares_vlan_with != null && vlanShareProblem(g, segs) == null;
+
+function checkSegment(g, segs, space, out) {
   const L = g.label, raw = g.raw, c = g.c;
   shapeErrors(L, "blocks", raw.blocks, out);
   shapeErrors(L, "devices", raw.devices, out);
@@ -116,6 +137,10 @@ function checkSegment(g, space, out) {
   if (c && c.aligned) rangeFindings(L, raw.cidr, c, true, out);
   if (raw.vlan != null && (typeof raw.vlan !== "number" || !Number.isInteger(raw.vlan) || raw.vlan < 1 || raw.vlan > 4094))
     out.push(E(L, "vlan-range", `VLAN ${J(raw.vlan)} is outside 1-4094.`));
+  if (raw.shares_vlan_with != null) {
+    const p = vlanShareProblem(g, segs);
+    if (p) out.push(E(L, "bad-vlan-share", p));
+  }
   if (c && space.length > 0 && !space.some((sp) => sp.c && containsC(sp.c, c)))
     out.push(E(L, "outside-space", `${raw.cidr} isn't inside the plan's address_space.`));
 
@@ -158,6 +183,14 @@ function checkSegment(g, space, out) {
     if (dr.current_ip != null && d.cur == null) out.push(badAddr(DL, "current_ip", dr.current_ip));
     if (dr.gateway === true && d.how !== "retire" && g.gw != null && d.n != null && d.n !== g.gw)
       out.push(W(DL, "gateway-mismatch", `Marked as the gateway, but the segment's gateway is ${raw.gateway}, not ${dr.ip}.`));
+    // "runs_on" names the device this one runs on (a VM on its hypervisor). Retiring devices count as devices.
+    if (dr.runs_on != null) {
+      const v = dr.runs_on;
+      if (typeof v !== "string") out.push(E(DL, "bad-runs-on", '"runs_on" must be the name of another device.'));
+      else if (v === dr.name) out.push(E(DL, "bad-runs-on", '"runs_on" names this device itself.'));
+      else if (!segs.some((x) => x.devices.some((o) => o.raw.name === v)))
+        out.push(W(DL, "runs-on-missing", `"runs_on" names ${v}, which isn't a device in the plan.`));
+    }
     if (d.how === "retire") continue;
     if (dr.ip == null) {
       if (d.how !== "dynamic") out.push(E(DL, "needs-address", `A ${d.how} device needs a planned "ip".`));
@@ -198,7 +231,7 @@ export function check(plan) {
     else if (!sp.c.aligned) out.push(E("address_space", "misaligned-cidr", `${sp.raw} doesn't start on a /${sp.c.prefix} boundary. Did you mean ${cidrStr(sp.c)}?`));
     else rangeFindings("address_space", sp.raw, sp.c, false, out);
   }
-  for (const g of segs) checkSegment(g, space, out);
+  for (const g of segs) checkSegment(g, segs, space, out);
   const cs = segs.filter((g) => g.c);
   for (let x = 0; x < cs.length; x++)
     for (let y = x + 1; y < cs.length; y++)
@@ -206,15 +239,19 @@ export function check(plan) {
         out.push(E(cs[x].label, "segment-overlap", `${cs[x].raw.cidr} overlaps segment ${cs[y].id} (${cs[y].raw.cidr}).`));
   const groups = (items, key) => {
     const m = new Map();
-    for (const it of items) { const k = JSON.stringify(key(it)); if (!m.has(k)) m.set(k, []); m.get(k).push(it); }
+    for (const it of items) { const k = K(key(it)); if (!m.has(k)) m.set(k, []); m.get(k).push(it); }
     return [...m.values()].filter((v) => v.length > 1);
   };
   for (const grp of groups(segs.filter((g) => g.raw.id != null), (g) => g.raw.id))
     out.push(E(`segment ${grp[0].raw.id}`, "duplicate-id", `${grp.length} segments share the id ${J(grp[0].raw.id)}.`));
-  // VLAN numbers only have to be unique within a site; segments with no site share one scope.
+  // VLAN numbers only have to be unique within a site; segments with no site share one scope. Several
+  // subnets on one VLAN are fine when all but one of them say so with a valid "shares_vlan_with".
   for (const grp of groups(segs.filter((g) => g.raw.vlan != null), (g) => [g.raw.site ?? null, g.raw.vlan])) {
-    const at = grp[0].raw.site != null ? ` at site ${grp[0].raw.site}` : "";
-    out.push(E(`vlan ${grp[0].raw.vlan}${at}`, "duplicate-vlan", `Segments ${grp.map((g) => g.id).join(", ")} share VLAN ${grp[0].raw.vlan}${at}.`));
+    if (grp.filter((g) => !sharesVlan(g, segs)).length < 2) continue;
+    const at = grp[0].raw.site != null ? ` at site ${S(grp[0].raw.site)}` : "";
+    const v = S(grp[0].raw.vlan);
+    out.push(W(`vlan ${v}${at}`, "duplicate-vlan",
+      `Segments ${grp.map((g) => g.id).join(", ")} share VLAN ${v}${at}. If that's on purpose, add "shares_vlan_with" to all but one of them.`));
   }
   const live = segs.flatMap((g) => g.devices.filter((d) => d.how !== "retire" && d.n != null).map((d) => ({ n: d.n, name: d.name, sid: g.id })));
   for (const grp of groups(live, (d) => d.n))
@@ -299,46 +336,65 @@ export function carve(parent, requests, avoid = []) {
   };
 }
 
-/** Render a plan as Markdown tables (same layout as `ipplan summary`). */
+/**
+ * Render a plan as Markdown tables, exactly as `ipplan summary` (summary.jq) does. Both read values
+ * the same way: null, false and "" count as missing, a value that isn't a string prints as JSON, and
+ * a list keeps only its object entries.
+ */
 export function summary(plan) {
-  const cell = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+  const has = (v) => !(v == null || v === false || v === "");
+  const or = (v, d) => (has(v) ? v : d);
+  const txt = (v) => (v == null ? "" : S(v));
+  const same = (a, b) => J(a) === J(b);
+  const cell = (v) => txt(v).replace(/\|/g, "\\|").replace(/\n/g, " ");
   const row = (a) => `| ${a.map(cell).join(" | ")} |`;
   const head = (cols) => [row(cols), row(cols.map(() => "---"))];
-  const rng = (s, e) => (s === e ? s : `${s} - ${e}`);
+  const rng = (s, e) => (same(s, e) ? s : `${txt(s)} - ${txt(e)}`);
+  const segName = (s) => or(s.name, s.id);
+  const devName = (d) => or(d.name, "unnamed");
+  const devs = (s) => objectsIn(s.devices);
   const segs = objectsIn(plan.segments).map((s) => ({ ...s, c: cidr(s.cidr) }));
-  const live = (s) => objectsIn(s.devices).filter((d) => d.how !== "retire" && d.gateway !== true);
-  const L = [`# ${plan.name || "Network plan"}`, ""];
-  if ((Array.isArray(plan.address_space) ? plan.address_space : []).length) L.push(`Address space: ${plan.address_space.map((a) => `\`${a}\``).join(", ")}`);
-  if (plan.notes) L.push("", plan.notes);
+  const live = (s) => devs(s).filter((d) => d.how !== "retire" && d.gateway !== true);
+  const space = Array.isArray(plan.address_space) ? plan.address_space : [];
+  const L = [`# ${txt(or(plan.name, "Network plan"))}`, ""];
+  if (space.length) L.push(`Address space: ${space.map((a) => `\`${txt(a)}\``).join(", ")}`);
+  if (has(plan.notes)) L.push("", txt(plan.notes));
   const sites = segs.some((s) => s.site != null);
+  // The device tables get a "Runs on" column only when some device says what it runs on.
+  const runsOn = segs.some((s) => devs(s).some((d) => typeof d.runs_on === "string"));
   L.push("", "## Segments", "", ...head([...(sites ? ["Site"] : []), "Segment", "VLAN", "Network", "Mask", "Gateway", "Usable", "DHCP pool", "Devices"]));
   for (const s of segs) {
-    const pools = objectsIn(s.blocks).filter((b) => b.kind === "pool").map((b) => rng(b.start, b.end));
-    L.push(row([...(sites ? [s.site ?? "-"] : []), s.name || s.id, s.vlan ?? "-", s.cidr || "-", s.c ? maskStr(s.c) : "-", s.gateway || "-", s.c ? usable(s.c) : "-", pools.length ? pools.join(", ") : "none", live(s).length]));
+    const pools = objectsIn(s.blocks).filter((b) => b.kind === "pool").map((b) => txt(rng(b.start, b.end)));
+    const v = S(or(s.vlan, "-"));
+    const vlan = typeof s.shares_vlan_with === "string" ? `${v} (shared with ${s.shares_vlan_with})` : v;
+    L.push(row([...(sites ? [or(s.site, "-")] : []), segName(s), vlan, or(s.cidr, "-"), s.c ? maskStr(s.c) : "-", or(s.gateway, "-"), s.c ? usable(s.c) : "-", pools.length ? pools.join(", ") : "none", live(s).length]));
   }
   for (const s of segs) {
-    L.push("", `## ${s.name || s.id} (\`${s.cidr}\`)`, "");
-    if (s.purpose) L.push(s.purpose, "");
+    const blocks = objectsIn(s.blocks), ds = devs(s);
+    L.push("", `## ${txt(segName(s))}${has(s.cidr) ? ` (\`${txt(s.cidr)}\`)` : ""}`, "");
+    if (has(s.purpose)) L.push(txt(s.purpose), "");
     L.push(`First usable ${s.c ? n2ip(firstHost(s.c)) : "-"}, last usable ${s.c ? n2ip(lastHost(s.c)) : "-"}.`);
-    if (objectsIn(s.blocks).length) {
+    if (blocks.length) {
       L.push("", ...head(["Block", "Range", "Kind", "Size", "Used"]));
-      for (const b of objectsIn(s.blocks)) {
+      for (const b of blocks) {
         const lo = ip2n(b.start), hi = ip2n(b.end);
-        const used = objectsIn(s.devices).filter((d) => d.how !== "retire" && ip2n(d.ip) != null && ip2n(d.ip) >= lo && ip2n(d.ip) <= hi).length;
-        L.push(row([b.name || "unnamed", rng(b.start, b.end), b.kind || "fixed", lo != null && hi != null ? hi - lo + 1 : "-", used]));
+        const inBlock = (d) => { const n = ip2n(d.ip); return n != null && lo != null && hi != null && n >= lo && n <= hi; };
+        const used = ds.filter((d) => d.how !== "retire" && inBlock(d)).length;
+        L.push(row([or(b.name, "unnamed"), rng(b.start, b.end), or(b.kind, "fixed"), lo != null && hi != null ? hi - lo + 1 : "-", used]));
       }
     }
-    if (objectsIn(s.devices).length) {
-      L.push("", ...head(["Device", "Address", "How", "Role", "Moves from"]));
-      const ds = [...objectsIn(s.devices)].sort((a, b) => (ip2n(a.ip) ?? 4294967296) - (ip2n(b.ip) ?? 4294967296));
-      for (const d of ds)
-        L.push(row([d.name || "unnamed", d.ip || (d.how === "dynamic" ? "from the pool" : "-"), d.how || "reserved", d.role || "", d.current_ip && d.current_ip !== d.ip ? d.current_ip : ""]));
+    if (ds.length) {
+      L.push("", ...head(["Device", "Address", "How", "Role", ...(runsOn ? ["Runs on"] : []), "Moves from"]));
+      const sorted = [...ds].sort((a, b) => (ip2n(a.ip) ?? 4294967296) - (ip2n(b.ip) ?? 4294967296));
+      for (const d of sorted)
+        L.push(row([devName(d), has(d.ip) ? d.ip : d.how === "dynamic" ? "from the pool" : "-", or(d.how, "reserved"), or(d.role, ""),
+          ...(runsOn ? [typeof d.runs_on === "string" ? d.runs_on : ""] : []), has(d.current_ip) && !same(d.current_ip, d.ip) ? d.current_ip : ""]));
     }
   }
-  const all = segs.flatMap((s) => objectsIn(s.devices));
-  const moves = all.filter((d) => d.current_ip && d.ip && d.current_ip !== d.ip && d.how !== "retire");
-  if (moves.length) L.push("", "## Moves", "", ...head(["Device", "From", "To"]), ...moves.map((d) => row([d.name, d.current_ip, d.ip])));
+  const all = segs.flatMap((s) => devs(s));
+  const moves = all.filter((d) => has(d.current_ip) && has(d.ip) && !same(d.current_ip, d.ip) && d.how !== "retire");
+  if (moves.length) L.push("", "## Moves", "", ...head(["Device", "From", "To"]), ...moves.map((d) => row([devName(d), d.current_ip, d.ip])));
   const gone = all.filter((d) => d.how === "retire");
-  if (gone.length) L.push("", "## Retiring", "", ...head(["Device", "Address now", "Role"]), ...gone.map((d) => row([d.name, d.current_ip || d.ip || "-", d.role || ""])));
+  if (gone.length) L.push("", "## Retiring", "", ...head(["Device", "Address now", "Role"]), ...gone.map((d) => row([devName(d), or(d.current_ip, or(d.ip, "-")), or(d.role, "")])));
   return L.join("\n");
 }

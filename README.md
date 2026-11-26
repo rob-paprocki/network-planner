@@ -23,10 +23,10 @@ You can also use the planner without an agent. [netplanner.rpaprocki.com](https:
 | Path | What it gives the agent |
 |---|---|
 | [`SKILL.md`](skills/network-planner/SKILL.md) | The method: what to ask, in what order, and what to check before calling a plan done |
-| [`references/segment-patterns.md`](skills/network-planner/references/segment-patterns.md) | Address space choices, sizing, VLAN numbering, and starting segment sets for a home, a lab, an office and AV or building systems |
+| [`references/segment-patterns.md`](skills/network-planner/references/segment-patterns.md) | Address space choices, sizing, VLAN numbering, when two subnets can share a VLAN, how to cut one flat network into blocks, and starting segment sets for a home, a lab, an office and AV or building systems |
 | [`references/plan-format.md`](skills/network-planner/references/plan-format.md) | The plan file format and every check the helper makes |
 | [`schema/plan.schema.json`](skills/network-planner/schema/plan.schema.json) | JSON Schema for plan files |
-| [`examples/`](skills/network-planner/examples/) | Five complete, clean plans to copy from: a small office, a home, a home lab, AV and building systems, and three sites |
+| [`examples/`](skills/network-planner/examples/) | Six complete, clean plans to copy from: a small office, a home, a home lab, a flat home lab, AV and building systems, and three sites |
 | `scripts/ipplan` | The helper: `carve`, `check`, `summary` and `info` |
 
 **Does not:** configure devices, scan a live network, or plan IPv6 (yet).
@@ -142,7 +142,7 @@ bash copilot/build.sh
 ```
 
 ```text
-copilot/build: wrote copilot/build/network-planner-copilot-1.0.0.zip (5814 characters of instructions, 9 skill files)
+copilot/build: wrote copilot/build/network-planner-copilot-1.1.0.zip (6798 characters of instructions, 10 skill files)
 ```
 
 Before writing the zip, the build checks the limits Microsoft documents for app manifest 1.29 and declarative agent manifest 1.9. These cover field lengths, icon sizes, file references and skill folder rules.

@@ -6,6 +6,28 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-26
+
+**Upgrading:** nothing to do. A plan with two segments on one VLAN at the same site used to fail the check, and now it passes with a warning. Add `shares_vlan_with` to mark the shared VLAN as deliberate and clear the warning.
+
+### Added
+
+- Segments take an optional `shares_vlan_with`: the id of another segment whose VLAN this one shares on purpose, such as a secondary subnet on one router interface, or old and new subnets side by side during a re-IP. `ipplan check` reports `bad-vlan-share` when it names the segment itself, a segment that isn't in the plan, or one at another site or on a different VLAN.
+- `ipplan summary` and the web planner show the shared VLAN. The summary's VLAN column reads, for example, "30 (shared with clients)". The page has a Shares VLAN column in the segments table, and when the address map colours by segment, its legend shows the share too.
+- The home lab example now shows a re-IP in progress. The old router's network runs on the clients VLAN until the desktop and the BMC have moved off it.
+- Devices take an optional `runs_on`: the name of the device this one runs on, such as the hypervisor under a VM or container. `ipplan check` reports `bad-runs-on` when it isn't a string or names the device itself, and warns with `runs-on-missing` when no device in the plan has that name. A retiring device still counts. When any device has `runs_on`, `ipplan summary` adds a Runs on column to each segment's device table. The web planner's devices table has a Runs on column too, and it suggests the names of the plan's devices as you type.
+- The web planner's address map can colour by block. A Colour by menu next to the map's Showing menu offers Auto, Segment and Block, and the page remembers your choice. Auto colours by block when exactly one segment overlaps the /24 on show and some of its blocks fall inside it. Otherwise it colours by segment. In block mode, each block gets its own colour, only spare blocks are grey, and the legend lists every block on show with its range, its kind and how many of its addresses are in use.
+- A flat home lab example: one /24 with no VLANs, cut into blocks for network gear, hypervisors, VMs and containers, the DHCP pool and printers. Each VM and container names its hypervisor in `runs_on`. It's in the web planner's example list as Flat home lab. The skill now says when one flat network is enough, and `references/segment-patterns.md` shows how to lay one out.
+
+### Changed
+
+- `duplicate-vlan` is now a warning. A plan whose only problem is a repeated VLAN makes `ipplan check` exit 2 instead of 1, and `ipplan check --json` and `/api/check` now report `"ok": true` for it. The warning only appears when more than one segment on that VLAN lacks a valid `shares_vlan_with`, and the message now says how to mark the share.
+
+### Fixed
+
+- `ipplan check` and the web planner used to disagree on a few malformed plans, and now give the same findings: a VLAN written as `30.0` or `3e1`, a `site` written as an object, and an `id`, block `kind` or device `how` set to `false`. The Markdown export from `ipplan summary` and from the page matches for these plans too.
+- `ipplan summary` used to stop with a jq error when a segment's `blocks` or `devices` wasn't a list of objects, when a block's start or end wasn't an IPv4 address, or when `address_space` wasn't a list. It also listed the entries of a `segments` object as segments. Now it skips what it can't read, as the page's Markdown export does, and the two print the same text for these plans. Both also treat an empty string as missing, so a plan saved from the page without a name gets the heading "Network plan" from either one.
+
 ## [1.0.1] - 2026-11-25
 
 **Upgrading:** nothing to do.

@@ -45,7 +45,8 @@ One JSON file per network. `schema/plan.schema.json` is the formal schema, which
 | `name` | yes | What people call it |
 | `cidr` | yes | The range, on its own boundary (`192.168.100.64/26`, not `.70/26`) |
 | `site` | no | Which site the segment belongs to. Use it when sites reuse the same VLAN numbers |
-| `vlan` | no | 1 to 4094, unique within its site (or across the plan when segments have no site) |
+| `vlan` | no | 1 to 4094. Each VLAN number belongs to one segment within its site (segments with no site count as one site), unless `shares_vlan_with` says otherwise |
+| `shares_vlan_with` | no | The `id` of another segment whose VLAN this one shares on purpose: a secondary subnet on the same router interface, or old and new subnets side by side during a re-IP. Both segments need the same `site` and `vlan`. On a shared VLAN, set it on every segment except one |
 | `gateway` | no, but warned | The router address on this segment, usually the first usable address |
 | `purpose` | no | Who lives here and what they may reach |
 | `blocks` | no | Runs of addresses with a job |
@@ -71,6 +72,7 @@ Blocks in a segment may not overlap. Leave gaps between them if you like: an add
 | `ip` | unless dynamic or retire | The planned address |
 | `current_ip` | no | Where it is today, if it moves |
 | `gateway` | no | `true` for the device that is the segment's gateway |
+| `runs_on` | no | The `name` of another device that this one runs on, such as the hypervisor under a VM or container. The host can be in any segment, and a retiring device counts. When any device has it, `ipplan summary` adds a Runs on column |
 | `role`, `note` | no | Free text |
 
 ## What `ipplan check` reports
@@ -90,8 +92,10 @@ Errors (exit 1) mean the plan can't be built as written. Warnings (exit 2) mean 
 | `cgnat-range` | warning | A segment is in the carrier-grade NAT range `100.64.0.0/10` |
 | `public-range` | warning | A segment is public address space: outside the private ranges and the documentation ranges |
 | `segment-overlap` | error | Two segments share addresses |
-| `duplicate-id`, `duplicate-vlan` | error | Two segments share an id, or two segments at one site share a VLAN |
+| `duplicate-id` | error | Two segments share an id |
+| `duplicate-vlan` | warning | Segments at one site (or segments with no site) share a VLAN, and more than one of them has no valid `shares_vlan_with`. The message lists them all |
 | `vlan-range` | error | VLAN outside 1 to 4094 |
+| `bad-vlan-share` | error | `shares_vlan_with` isn't a string, names the segment itself, or names a segment that isn't in the plan, is at a different site or is on a different VLAN. It's also an error when either segment has no `vlan` |
 | `no-gateway` | warning | No gateway set |
 | `gateway-outside`, `gateway-reserved`, `gateway-in-pool` | error | The gateway is outside the segment, on its network or broadcast address, or inside the DHCP pool |
 | `block-kind`, `block-order`, `block-outside`, `block-overlap` | error | Bad kind, start after end, outside the segment, or blocks overlapping |
@@ -101,6 +105,8 @@ Errors (exit 1) mean the plan can't be built as written. Warnings (exit 2) mean 
 | `device-outside`, `device-reserved` | error | Address outside the segment, or its network or broadcast address |
 | `device-on-gateway` | error | A device sits on the gateway address without `"gateway": true` |
 | `gateway-mismatch` | warning | Marked as the gateway but not on the gateway address |
+| `bad-runs-on` | error | `runs_on` isn't a string, or names the device itself |
+| `runs-on-missing` | warning | `runs_on` names a device that isn't in the plan. Devices in every segment count, retiring ones too |
 | `duplicate-address` | error | Two live devices planned on one address (retiring devices don't count) |
 | `fixed-in-pool` | error | A static or reserved address inside the DHCP pool |
 | `dynamic-outside-pool`, `in-spare`, `no-block` | warning | A device sits where its `how` doesn't fit |

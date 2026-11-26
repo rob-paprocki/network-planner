@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "name": "Example flat home lab",
+  "address_space": ["192.168.50.0/24"],
+  "notes": "One flat /24 with no VLANs, cut into sections. Every guest names the hypervisor it runs on.",
+  "segments": [
+    {
+      "id": "lan", "name": "Home lab LAN", "cidr": "192.168.50.0/24", "gateway": "192.168.50.1",
+      "purpose": "Everything shares one network; the sections keep addresses tidy and the DHCP pool clear of fixed devices.",
+      "blocks": [
+        { "name": "Network gear", "start": "192.168.50.1", "end": "192.168.50.9", "kind": "fixed" },
+        { "name": "Hypervisors", "start": "192.168.50.10", "end": "192.168.50.19", "kind": "fixed" },
+        { "name": "VMs and containers", "start": "192.168.50.20", "end": "192.168.50.59", "kind": "fixed" },
+        { "name": "Room to grow", "start": "192.168.50.60", "end": "192.168.50.99", "kind": "spare" },
+        { "name": "DHCP", "start": "192.168.50.100", "end": "192.168.50.199", "kind": "pool" },
+        { "name": "Printers and gadgets", "start": "192.168.50.200", "end": "192.168.50.239", "kind": "fixed" },
+        { "name": "Spare", "start": "192.168.50.240", "end": "192.168.50.254", "kind": "spare" }
+      ],
+      "devices": [
+        { "name": "router", "ip": "192.168.50.1", "how": "static", "role": "Router and firewall", "gateway": true },
+        { "name": "switch", "ip": "192.168.50.2", "how": "static", "role": "Switch" },
+        { "name": "access-point", "ip": "192.168.50.3", "how": "reserved", "role": "Wi-Fi access point" },
+        { "name": "hypervisor-1", "ip": "192.168.50.10", "how": "static", "role": "Hypervisor" },
+        { "name": "hypervisor-2", "ip": "192.168.50.11", "how": "static", "role": "Hypervisor" },
+        { "name": "dns", "ip": "192.168.50.20", "how": "static", "role": "DNS and DHCP", "runs_on": "hypervisor-1" },
+        { "name": "media", "ip": "192.168.50.21", "how": "static", "role": "Media server", "runs_on": "hypervisor-1" },
+        { "name": "home-automation", "ip": "192.168.50.22", "how": "reserved", "role": "Home automation", "runs_on": "hypervisor-1", "current_ip": "192.168.50.150" },
+        { "name": "git", "ip": "192.168.50.23", "how": "static", "role": "Code and CI", "runs_on": "hypervisor-2" },
+        { "name": "backup", "ip": "192.168.50.24", "how": "static", "role": "Backups", "runs_on": "hypervisor-2" },
+        { "name": "old-nas", "ip": "192.168.50.30", "how": "retire", "role": "Replaced by the backup VM" },
+        { "name": "printer", "ip": "192.168.50.200", "how": "reserved", "role": "Printer" },
+        { "name": "tv", "ip": "192.168.50.201", "how": "reserved", "role": "Living room TV" },
+        { "name": "family-devices", "how": "dynamic", "role": "Phones and laptops" }
+      ]
+    }
+  ]
+}

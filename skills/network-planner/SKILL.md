@@ -18,7 +18,7 @@ You help someone turn "we need some VLANs" into a plan they can build from: ever
 | `ipplan summary plan.json` | The whole plan as Markdown tables, for handing off |
 | `ipplan info CIDR` | One range's mask, usable count, first and last address, what kind of space it is (private, documentation, multicast, public) and its old-style class |
 
-The file format is in `references/plan-format.md`, and `examples/` holds five complete, clean plans to copy from: `small-office.json`, `home.json`, `home-lab.json`, `av-building.json` and `three-sites.json` (several sites that reuse VLAN numbers, with `site` set on each segment and /31 links between them). Pick the one closest to what the person describes. For advice on which segments to have, how big to make them and how to number VLANs, read `references/segment-patterns.md` when you reach that step.
+The file format is in `references/plan-format.md`, and `examples/` holds six complete, clean plans to copy from: `small-office.json`, `home.json`, `home-lab.json` (part way through a re-IP, with the old network sharing a VLAN), `flat-lab.json` (one /24 with no VLANs, cut into blocks, where each VM names its hypervisor in `runs_on`), `av-building.json` and `three-sites.json` (several sites that reuse VLAN numbers, with `site` set on each segment and /31 links between them). Pick the one closest to what the person describes. For advice on which segments to have, how big to make them and how to number VLANs, read `references/segment-patterns.md` when you reach that step.
 
 ### If you can't run the helper
 
@@ -47,6 +47,8 @@ Pick the parent range everything fits inside, and record it in `address_space`. 
 
 A segment is one subnet with one purpose and, usually, one VLAN. Group devices by who they belong to and what they're allowed to reach, not by device type. `references/segment-patterns.md` has starting sets for a home, a home lab, a small office and an AV or building-systems network.
 
+A flat network is a single segment, often with no VLAN, cut into blocks in step 4. It's fine for a home or small lab where the devices don't need to be kept apart, and `references/segment-patterns.md` has a layout for one.
+
 For each segment, get a short `id`, a name, a VLAN number, a host count and a sentence of purpose saying what it may and may not reach. That sentence becomes the firewall rules later, so it's worth getting. Size for growth: a count of what's there today plus about half again, or double for anything with DHCP clients. Then run:
 
 ```bash
@@ -54,6 +56,8 @@ For each segment, get a short `id`, a name, a VLAN number, a host count and a se
 ```
 
 Use the ranges it gives you. Don't compute them yourself. When adding to an existing plan, pass `--plan <file>` so new segments land in free space.
+
+One VLAN usually carries one subnet. Two subnets on one VLAN make sense in two cases: a re-IP, where the old and new subnets run side by side until every device has moved, or a secondary subnet added to a router interface whose first range has filled up. Tell the person what it costs. There's no layer-2 separation between those subnets, so they're one broadcast domain and a device on one can talk to the other directly, without passing the router's firewall. The DHCP server also needs a scope for each subnet on that VLAN. If they still want it, give each subnet its own segment with the same `vlan` and `site`, and set `shares_vlan_with` on all of them except one, naming another segment on that VLAN. Without it, `check` warns that the VLAN repeats.
 
 ### 4. Blocks inside each segment
 
@@ -67,6 +71,8 @@ List each device with its planned `ip` and `how`:
 - `reserved`: a DHCP reservation.
 - `dynamic`: any address from the pool. No `ip` needed.
 - `retire`: being removed.
+
+For a VM or container, set `runs_on` to the name of the device it runs on, usually a hypervisor, and list that host as a device too. The summary then shows each guest's host, and `check` warns when `runs_on` names a device that isn't in the plan.
 
 Fixed and reserved devices go in fixed blocks, never in the pool, because DHCP would hand the same address to something else. Listing the gateway interface as a device is optional. If you do, mark it `"gateway": true`; the summary leaves it out of the device count. Segment order in the plan doesn't matter: `carve` puts the biggest segments first so each lands on its boundary.
 

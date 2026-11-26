@@ -4,6 +4,10 @@
 
 def p2($n): reduce range(0; $n) as $i (1; . * 2);
 
+# The object entries of a list; anything else (a string, null, a number) yields nothing.
+# check reports malformed entries, and summary skips them, the way objectsIn() does in ipplan.js.
+def objects_in: if type == "array" then .[] | select(type == "object") else empty end;
+
 # "192.0.2.1" -> number, or null when it isn't a plain dotted-quad IPv4 address.
 def ip2n:
   if type != "string" then null

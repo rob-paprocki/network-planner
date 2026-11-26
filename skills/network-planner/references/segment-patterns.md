@@ -40,6 +40,17 @@ Pick a scheme people can remember, and write it in the plan's `notes`:
 - Or match the address: VLAN 30 uses the range whose third number is 30. It's easy to read at a glance, but only works when segments are /24s.
 - Keep VLAN 1 out of the plan. It's the default on most switches, so a misconfigured port lands there.
 
+## Several subnets on one VLAN
+
+Plan one subnet per VLAN unless one of these applies:
+
+- A re-IP. The old and new subnets run on one VLAN while devices move across one at a time, and the old subnet is removed once it's empty. Either one can join the other's VLAN. `examples/home-lab.json` shows one part way through, with the old flat network on the new clients VLAN.
+- A secondary subnet. The router interface gets a second address and range because the first range filled up and renumbering can wait.
+
+The subnets on that VLAN are one broadcast domain. Nothing at layer 2 keeps them apart, so a device on one can reach the other without going through the router, and firewall rules between them are easy to get around. The DHCP server needs a scope for each subnet on the VLAN. ISC DHCP and Kea group them as a shared network, and Windows Server as a superscope.
+
+In the plan, each subnet is its own segment with its own range and gateway, and they all carry the same `vlan` and `site`. Set `shares_vlan_with` on all of them except one, naming another segment on the same VLAN. `ipplan check` then accepts the repeated VLAN; without it, the check warns.
+
 ## Starting sets
 
 ### Home
@@ -94,3 +105,21 @@ A layout that works for most segments, shown for a /26 (64 addresses, offsets fr
 | +24 to +62 | DHCP | pool |
 
 Keep the fixed and spare blocks together at the bottom and the pool at the top, so you can move the line between them later without renumbering anything.
+
+## One flat network
+
+A flat network puts every device in one segment, often with no VLAN. That's fine for a home or a small lab where every device can safely reach every other one. Nothing keeps devices apart, though: a cheap camera or smart plug can talk to the NAS directly, with no firewall in between. Once guests, IoT gadgets or work devices need to be kept apart, give them segments of their own.
+
+In a flat network the blocks keep the addresses in order. Give each kind of fixed device a block of its own, put the DHCP pool in one block, and leave spare blocks where things will grow. Leave `vlan` out of the segment if the network has no VLANs. `examples/flat-lab.json` lays out a /24 like this:
+
+| Addresses | Block | Kind |
+|---|---|---|
+| .1 to .9 | Network gear: router, switch, access points | fixed |
+| .10 to .19 | Hypervisors | fixed |
+| .20 to .59 | VMs and containers | fixed |
+| .60 to .99 | Room to grow | spare |
+| .100 to .199 | DHCP | pool |
+| .200 to .239 | Printers and gadgets | fixed |
+| .240 to .254 | Spare | spare |
+
+With the printers above the pool, the pool can only grow downward, into Room to grow. Set the DHCP server's range to the pool block exactly. Home routers often hand out most of the /24 by default, which overlaps the fixed blocks, so shrink that range before anything gets a fixed address. Give each VM or container a fixed address in its block and set `runs_on` to the hypervisor it runs on.

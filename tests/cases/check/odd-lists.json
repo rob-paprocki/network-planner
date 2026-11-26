@@ -1,0 +1,25 @@
+{
+  "name": "odd-lists",
+  "expect": [
+    "bad-structure"
+  ],
+  "plan": {
+    "schema": 1,
+    "name": "Example flat home lab",
+    "address_space": "192.168.50.0/24",
+    "notes": "One flat /24 with no VLANs, cut into sections. Every guest names the hypervisor it runs on.",
+    "segments": [
+      {
+        "id": "lan",
+        "name": "Home lab LAN",
+        "cidr": "192.168.50.0/24",
+        "gateway": "192.168.50.1",
+        "purpose": "Everything shares one network; the sections keep addresses tidy and the DHCP pool clear of fixed devices.",
+        "blocks": "oops",
+        "devices": {
+          "name": "ghost"
+        }
+      }
+    ]
+  }
+}
